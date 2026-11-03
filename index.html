@@ -1,0 +1,885 @@
+<title>Centro Logístico WMS</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sidebar por flujo operativo (entrada → almacén → salida → postventa) + área de trabajo con guía contextual */
+:root{
+  --bg:#F5F6F8;--surface:#FFFFFF;--sunk:#EDEFF3;--ink:#12161C;--ink2:#394251;--muted:#677081;--line:#E1E4EA;
+  --accent:#0B6B63;--accent-ink:#FFFFFF;--accent-soft:#DDF0EC;
+  --ok:#1E7F47;--ok-soft:#E0F3E8;--warn:#94600A;--warn-soft:#FBEFD5;--bad:#B3321F;--bad-soft:#FBE3DE;--info:#2754A6;--info-soft:#E3ECFA;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;--sh:0 1px 2px rgba(18,22,28,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1115;--surface:#141A20;--sunk:#1A2129;--ink:#E8ECF1;--ink2:#C3CBD6;--muted:#8F99A8;--line:#252D37;
+  --accent:#3FBFAE;--accent-ink:#06201C;--accent-soft:#12302C;
+  --ok:#4CC27E;--ok-soft:#133323;--warn:#E3A83F;--warn-soft:#38290E;--bad:#F07A66;--bad-soft:#3C1A14;--info:#7FA6EE;--info-soft:#16284A;--sh:none;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1115;--surface:#141A20;--sunk:#1A2129;--ink:#E8ECF1;--ink2:#C3CBD6;--muted:#8F99A8;--line:#252D37;
+  --accent:#3FBFAE;--accent-ink:#06201C;--accent-soft:#12302C;
+  --ok:#4CC27E;--ok-soft:#133323;--warn:#E3A83F;--warn-soft:#38290E;--bad:#F07A66;--bad-soft:#3C1A14;--info:#7FA6EE;--info-soft:#16284A;--sh:none;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100vh}
+#nav{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;background:var(--surface);border-right:1px solid var(--line);padding:20px 12px}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 10px 18px}
+.brand b{font-weight:600;font-size:15px;letter-spacing:-.01em;display:block;line-height:1.2}
+.brand small{color:var(--muted);font-size:11.5px}
+.mark{width:28px;height:28px;border-radius:7px;background:var(--accent);display:grid;place-items:center;flex:none}
+.mark i{width:12px;height:12px;border:2px solid var(--accent-ink);border-radius:2px;display:block}
+.ngrp{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:14px 10px 6px}
+.nitem{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;color:var(--ink2);cursor:pointer}
+.nitem:hover{background:var(--sunk)}
+.nitem[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.cnt{font:500 11px var(--mono);background:var(--sunk);color:var(--ink2);border-radius:20px;padding:1px 7px;min-width:20px;text-align:center}
+.nitem[aria-current="page"] .cnt{background:var(--accent);color:var(--accent-ink)}
+.cnt.hot{background:var(--warn-soft);color:var(--warn)}
+.nfoot{padding:16px 10px 0;display:flex;flex-direction:column;gap:8px}
+.main{min-width:0;padding-block:26px 60px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.head h1{font-size:23px;font-weight:600;letter-spacing:-.02em;text-wrap:balance}
+.head p{color:var(--muted);margin-top:2px;max-width:62ch}
+.guide{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0}
+.guide summary{cursor:pointer;padding:10px 14px;font-weight:500;color:var(--ink2);list-style:none;display:flex;gap:8px;align-items:center}
+.guide summary::-webkit-details-marker{display:none}
+.guide summary::before{content:"";width:6px;height:6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+.guide[open] summary::before{transform:rotate(45deg)}
+.guide .gb{padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;color:var(--ink2)}
+.guide .gb div{border-left:2px solid var(--line);padding-left:12px}
+.guide .gb b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px;font-size:12.5px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px 0}
+.ph h2{font-size:14px;font-weight:600}
+.ph small,.sub{color:var(--muted);font-size:12.5px}
+.pb{padding:14px 16px 16px;min-width:0}
+.pb.flush{padding:8px 0 0}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.split{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-items:start}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{padding:14px 16px}
+.kpi small{color:var(--muted);font-size:12px;display:block}
+.kpi b{font:500 26px var(--mono);letter-spacing:-.03em;display:block;margin-top:2px}
+.kpi span{font-size:12px;color:var(--muted)}
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.flow button{background:none;border:0;border-right:1px solid var(--line);padding:14px 16px;text-align:left;cursor:pointer;display:block}
+.flow button:last-child{border-right:0}
+.flow button:hover{background:var(--sunk)}
+.flow small{color:var(--muted);display:block;font-size:12px}
+.flow b{font:500 22px var(--mono);letter-spacing:-.03em}
+.flow em{font-style:normal;font-size:12px;color:var(--accent)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500;text-align:left;padding:8px 14px;white-space:nowrap}
+td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mono{font-family:var(--mono);font-size:12.5px}td.mono{white-space:nowrap}
+tr.clk{cursor:pointer}tr.clk:hover td{background:var(--sunk)}
+.muted{color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;border-radius:20px;padding:2px 9px;white-space:nowrap;background:var(--sunk);color:var(--ink2)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}.chip.info{background:var(--info-soft);color:var(--info)}.chip.acc{background:var(--accent-soft);color:var(--accent)}
+.abc{font:600 11.5px var(--mono);width:22px;height:22px;border-radius:6px;display:inline-grid;place-items:center}
+.abc.A{background:var(--accent);color:var(--accent-ink)}.abc.B{background:var(--info-soft);color:var(--info)}.abc.C{background:var(--sunk);color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-weight:500;cursor:pointer;white-space:nowrap}
+.btn:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent;color:var(--ink2);border-color:var(--line)}.btn.ghost:hover{background:var(--sunk);filter:none}
+.btn.sm{height:30px;padding:0 10px;font-size:12.5px}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f>span{font-size:12px;color:var(--muted)}
+.in{height:36px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:0 10px;min-width:0;width:100%}
+textarea.in{height:auto;padding:8px 10px;min-height:64px;font-family:var(--mono);font-size:12.5px}
+.in:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:3px;background:var(--sunk);gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:var(--sh)}
+.bar{height:6px;background:var(--sunk);border-radius:4px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.bar.warn i{background:var(--warn)}.bar.bad i{background:var(--bad)}
+.note{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:10px 12px;color:var(--ink2);font-size:13px}
+.note.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.note.bad{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.note.ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.list{display:flex;flex-direction:column}
+.li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+.li:first-child{border-top:0}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:10px 16px;border-top:1px solid var(--line);cursor:pointer}
+.chk input{margin-top:3px;accent-color:var(--accent)}
+.ov{position:fixed;inset:0;background:rgba(8,12,16,.55);display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow:auto;z-index:50}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:100%;max-width:780px;display:flex;flex-direction:column}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);gap:10px}
+.mh h2{font-size:16px;font-weight:600}
+.mb{padding:18px;min-width:0}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:max-content;max-width:calc(100vw - 32px)}
+.tst{background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:9px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.paper{background:#fff;color:#111;border:1px solid #cfd3d9;border-radius:6px;padding:18px;font-size:12.5px;line-height:1.45}
+.paper h3{font-size:15px;margin-bottom:4px}
+.paper table td,.paper table th{padding:5px 8px;border-top:1px solid #ddd;color:#111}
+.paper table th{color:#555;font-size:10.5px}
+.paper .mono{font-size:11.5px}
+.label{background:#fff;color:#000;border:2px solid #000;width:100%;max-width:400px;padding:12px;font-family:Arial,Helvetica,sans-serif;display:flex;flex-direction:column;gap:8px}
+.label .big{font-size:20px;font-weight:700;line-height:1.1}
+.label .sm{font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.label hr{border:0;border-top:2px solid #000;margin:0;width:100%}
+.label svg{max-width:100%;height:auto}
+.lrow{display:flex;gap:10px;justify-content:space-between;align-items:center}
+.sig{display:flex;gap:28px;margin-top:30px;flex-wrap:wrap}
+.sig div{flex:1;min-width:140px;border-top:1px solid #111;padding-top:4px;font-size:11px;color:#444}
+.path{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  #nav{position:sticky;top:0;z-index:20;max-height:none;border-right:0;border-bottom:1px solid var(--line);padding:10px 12px;display:flex;gap:6px;overflow-x:auto;align-items:center}
+  .brand,.ngrp,.nfoot{display:none}
+  .nitem{width:auto;white-space:nowrap}
+  .grid2,.grid3,.split{grid-template-columns:minmax(0,1fr)}
+  .flow{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .flow button{border-bottom:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<div class="app">
+  <nav id="nav" aria-label="Módulos"></nav>
+  <main class="main"><div class="wrap" id="view"></div></main>
+</div>
+<div id="ov"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="vendor/JsBarcode.all.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="wms-db.js"></script>
+<script>
+'use strict';
+/* ========== Utilidades ========== */
+const KEY='wms-centro-logistico-v1';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf=new Intl.NumberFormat('es-CL');
+const clp=n=>'$'+nf.format(Math.round(n));
+const kgf=n=>nf.format(Math.round(n*100)/100)+' kg';
+const DAY=864e5;
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const addDays=n=>{const d=today();d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
+const daysTo=iso=>iso?Math.round((new Date(iso+'T00:00:00')-today())/DAY):null;
+const fdate=iso=>iso?iso.split('-').reverse().join('/'):'—';
+const now=()=>new Date().toISOString();
+const ftime=iso=>new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+const ZN={A:'Zona A · Alta rotación',B:'Zona B · Media rotación',C:'Zona C · Baja rotación',R:'Reserva · Pesados y voluminosos',Q:'Cuarentena y devoluciones',M:'Muelle de recepción'};
+const ZSHORT={A:'A',B:'B',C:'C',R:'Reserva',Q:'Cuarentena',M:'Muelle'};
+const DEPOT={x:0,y:0,name:'Centro logístico (Pudahuel)'};
+
+/* ========== Datos de ejemplo ========== */
+const SKUS=[
+ {sku:'SKU-1001',name:'Aceite de oliva 1 L',w:1.0,vol:1.4,vel:420,ser:false,per:true,cost:3200,price:5490},
+ {sku:'SKU-1002',name:'Arroz grado 1 · 1 kg',w:1.0,vol:1.6,vel:600,ser:false,per:true,cost:1100,price:1890},
+ {sku:'SKU-1003',name:'Detergente líquido 3 L',w:3.2,vol:4,vel:310,ser:false,per:true,cost:5200,price:8990},
+ {sku:'SKU-1004',name:'Leche UHT 1 L',w:1.05,vol:1.3,vel:520,ser:false,per:true,cost:720,price:1090},
+ {sku:'SKU-1005',name:'Pañales talla XG · paquete',w:5.2,vol:28,vel:190,ser:false,per:true,cost:9000,price:13990},
+ {sku:'SKU-1006',name:'Smartphone A15 128 GB',w:0.4,vol:1.2,vel:85,ser:true,per:false,cost:165000,price:229990},
+ {sku:'SKU-1007',name:'Notebook 14" i5',w:1.8,vol:9,vel:40,ser:true,per:false,cost:410000,price:549990},
+ {sku:'SKU-1008',name:'Auriculares Bluetooth',w:0.25,vol:1,vel:140,ser:true,per:false,cost:14000,price:24990},
+ {sku:'SKU-1009',name:'Microondas 20 L',w:11.5,vol:60,vel:25,ser:true,per:false,cost:52000,price:79990},
+ {sku:'SKU-1010',name:'Lavadora carga frontal 8 kg',w:46,vol:280,vel:8,ser:true,per:false,cost:240000,price:329990},
+ {sku:'SKU-1011',name:'Mesa de centro roble',w:18,vol:120,vel:14,ser:false,per:false,cost:48000,price:89990},
+ {sku:'SKU-1012',name:'Cable USB-C 1 m',w:0.08,vol:0.2,vel:260,ser:false,per:false,cost:1900,price:5990}
+];
+const CUST={
+ alameda:{n:'Supermercado Alameda',com:'Santiago Centro',x:12,y:0,dir:'Av. Libertador B. O\'Higgins 1450'},
+ provi:{n:'Tienda Providencia',com:'Providencia',x:17,y:3,dir:'Av. Providencia 2230'},
+ maipu:{n:'Ferretería Maipú',com:'Maipú',x:6,y:-10,dir:'Camino a Rinconada 1180'},
+ nunoa:{n:'Electro Ñuñoa',com:'Ñuñoa',x:19,y:0,dir:'Av. Irarrázaval 3340'},
+ condes:{n:'Casa Las Condes',com:'Las Condes',x:23,y:6,dir:'Av. Apoquindo 5100'},
+ florida:{n:'Minimarket La Florida',com:'La Florida',x:22,y:-9,dir:'Av. Vicuña Mackenna 7200'},
+ puente:{n:'Hogar Puente Alto',com:'Puente Alto',x:26,y:-16,dir:'Av. Concha y Toro 1890'},
+ quili:{n:'Distribuidora Quilicura',com:'Quilicura',x:7,y:10,dir:'Av. Lo Echevers 650'}
+};
+function genLocs(){const L=[];const cap={1:{vol:1800,kg:1200},2:{vol:1000,kg:500}};
+ for(const z of ['A','B','C'])for(let a=1;a<=2;a++)for(let b=1;b<=3;b++)for(let l=1;l<=2;l++)L.push({id:`${z}-0${a}-0${b}-${l}`,z,a,b,l,...cap[l]});
+ for(let b=1;b<=6;b++)L.push({id:`R-01-0${b}-1`,z:'R',a:1,b,l:1,vol:9000,kg:3500});
+ for(let b=1;b<=4;b++)L.push({id:`Q-01-0${b}-1`,z:'Q',a:1,b,l:1,vol:1500,kg:800});
+ return L}
+const MUELLE={id:'MUELLE',z:'M',a:0,b:0,l:1,vol:Infinity,kg:Infinity};
+const BOXES=[
+ {id:'S',name:'Caja S',dim:'30×20×15',vol:9,tare:.2,max:8},
+ {id:'M',name:'Caja M',dim:'45×30×25',vol:34,tare:.4,max:20},
+ {id:'L',name:'Caja L',dim:'60×40×35',vol:84,tare:.7,max:30},
+ {id:'XL',name:'Caja XL',dim:'80×50×50',vol:200,tare:1.2,max:40},
+ {id:'P',name:'Pallet envuelto',dim:'120×100×120',vol:1000,tare:25,max:900}
+];
+let S;
+function seed(){
+ S={skus:SKUS.map(x=>({...x})),locs:genLocs(),cust:JSON.parse(JSON.stringify(CUST)),provs:seedProvs(),carriers:seedCarriers(),stock:[],movs:[],asn:[],orders:[],waves:[],packs:[],returns:[],notes:[],routes:[],syncLog:[],
+  vehicles:[{id:'V1',name:'Furgón 1',plate:'KLRT-42',carrier:'',driver:'M. Soto',drvPhone:'+56 9 5555 0101',kg:900,bultos:30,active:true},{id:'V2',name:'Camión 3/4',plate:'PXZD-18',carrier:'T1',driver:'J. Rojas',drvPhone:'+56 9 5555 0102',kg:3000,bultos:80,active:true},{id:'V3',name:'Camioneta',plate:'HGBW-07',carrier:'T2',driver:'C. Pino',drvPhone:'+56 9 5555 0103',kg:500,bultos:15,active:true}],
+  set:{autoSync:false},seq:{cust:1,veh:4,prov:4,car:3,st:1,asn:4,ord:1009,wave:1,pack:1,ret:1,note:1,route:1,folio:48210,sscc:100,rma:1,mov:1}};
+ const ser=(p,n)=>Array.from({length:n},(_,i)=>p+String(i+1).padStart(5,'0'));
+ const add=(sku,lot,exp,qty,loc,sers=[])=>{S.stock.push({id:'ST'+(S.seq.st++),sku,lot,exp,qty,res:0,loc,serials:sers,status:'ok'});mov('Ingreso',sku,lot,qty,loc,'Carga inicial')};
+ add('SKU-1001','L2409',addDays(25),120,'A-01-01-1');add('SKU-1001','L2501',addDays(160),200,'A-01-01-1');
+ add('SKU-1002','A-771',addDays(300),500,'A-01-02-1');
+ add('SKU-1003','D-102',addDays(420),90,'C-01-01-1');
+ add('SKU-1004','LU-61',addDays(14),80,'A-01-03-1');add('SKU-1004','LU-55',addDays(90),360,'A-01-03-1');
+ add('SKU-1005','P-9',addDays(700),60,'B-01-01-1');
+ add('SKU-1006','S-A15',null,40,'B-01-02-1',ser('SN-A15-',40));add('SKU-1006','S-A16',null,12,'A-02-01-2',ser('SN-A16-',12));
+ add('SKU-1007','N-14',null,18,'C-02-01-2',ser('SN-N14-',18));
+ add('SKU-1008','H-33',null,80,'B-01-03-1',ser('SN-H33-',80));
+ add('SKU-1009','M-20',null,12,'C-01-02-1',ser('SN-M20-',12));
+ add('SKU-1010','W-8',null,5,'R-01-01-1',ser('SN-W8-',5));
+ add('SKU-1011','T-1',null,9,'A-02-02-1');
+ add('SKU-1012','K-1',null,300,'A-02-03-2');
+ S.movs.reverse();
+ S.asn=[
+  {id:'ASN-2411-001',prov:'Agroandes Ltda.',oc:'OC-5521',eta:addDays(0),status:'Pendiente',lines:[{sku:'SKU-1001',exp:240},{sku:'SKU-1002',exp:400}]},
+  {id:'ASN-2411-002',prov:'TecnoImport SpA',oc:'OC-5530',eta:addDays(0),status:'Pendiente',lines:[{sku:'SKU-1006',exp:60},{sku:'SKU-1008',exp:100}]},
+  {id:'ASN-2411-003',prov:'Hogar Sur S.A.',oc:'OC-5534',eta:addDays(1),status:'Pendiente',lines:[{sku:'SKU-1010',exp:6},{sku:'SKU-1011',exp:10}]}];
+ const O=(id,c,prio,lines,extra={})=>({id,cust:c,prio,lines:lines.map(([sku,qty])=>({sku,qty,serials:[]})),status:'Pendiente',created:now(),route:null,wave:null,...extra});
+ S.orders=[
+  O('PED-1001','alameda','Estándar',[['SKU-1002',40],['SKU-1004',60],['SKU-1001',30]]),
+  O('PED-1002','provi','Express',[['SKU-1006',4],['SKU-1008',10],['SKU-1012',20]]),
+  O('PED-1003','maipu','Estándar',[['SKU-1003',12],['SKU-1002',20],['SKU-1012',30]]),
+  O('PED-1004','nunoa','Express',[['SKU-1007',3],['SKU-1006',2]]),
+  O('PED-1005','condes','Estándar',[['SKU-1010',1],['SKU-1011',2]]),
+  O('PED-1006','florida','Estándar',[['SKU-1004',48],['SKU-1001',24],['SKU-1005',6]]),
+  O('PED-1007','puente','Estándar',[['SKU-1009',2],['SKU-1010',1]]),
+  O('PED-1008','quili','Estándar',[['SKU-1002',60],['SKU-1003',10]])];
+ const d1=O('PED-0990','provi','Estándar',[['SKU-1006',1],['SKU-1005',2]],{status:'Despachado'});d1.lines[0].serials=['SN-OLD-00417'];
+ const d2=O('PED-0991','condes','Estándar',[['SKU-1001',6],['SKU-1009',1]],{status:'Despachado'});d2.lines[1].serials=['SN-OLD-00233'];
+ S.orders.push(d1,d2);
+}
+function seedProvs(){return [{id:'P1',name:'Agroandes Ltda.',rut:'76.111.222-3',contact:'Marcela Vega',phone:'+56 2 2555 0111',email:'ventas@agroandes.example'},{id:'P2',name:'TecnoImport SpA',rut:'77.333.444-5',contact:'Diego Fuentes',phone:'+56 2 2555 0122',email:'compras@tecnoimport.example'},{id:'P3',name:'Hogar Sur S.A.',rut:'96.555.666-7',contact:'Patricia Lagos',phone:'+56 2 2555 0133',email:'pedidos@hogarsur.example'}]}
+function seedCarriers(){return [{id:'T1',name:'Transportes Andes SpA',rut:'76.777.888-9',contact:'Raúl Mena',phone:'+56 2 2555 0201'},{id:'T2',name:'Logística Maipo Ltda.',rut:'77.999.000-1',contact:'Carla Soto',phone:'+56 2 2555 0202'}]}
+function migrate(){if(!S.cust)S.cust=JSON.parse(JSON.stringify(CUST));if(!S.provs)S.provs=seedProvs();if(!S.carriers)S.carriers=seedCarriers();
+ S.vehicles.forEach(v=>{if(v.active==null)v.active=true;if(v.carrier==null)v.carrier='';if(v.drvPhone==null)v.drvPhone=''});
+ S.seq.cust??=1;S.seq.veh??=S.vehicles.length+1;S.seq.prov??=S.provs.length+1;S.seq.car??=S.carriers.length+1}
+function mov(type,sku,lot,qty,loc,ref){S.movs.unshift({ts:now(),type,sku,lot,qty,loc,ref});if(S.movs.length>400)S.movs.length=400}
+let DBON=false,DBS='local';
+function save(){if(DBON&&window.WMSDB){WMSDB.push(S);return}try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function dbChip(){const m={local:['Datos solo en este navegador',''],synced:['Base de datos conectada','ok'],saving:['Guardando…','info'],offline:['Sin conexión: reintentando','bad'],conflict:['Otro usuario guardó antes','bad'],stale:['Hay cambios de otros usuarios','warn']}[DBS]||['',''];
+ return `<div class="chip ${m[1]}" style="white-space:normal;line-height:1.3;justify-content:center">${m[0]}</div>`+(DBS==='conflict'||DBS==='stale'?'<button class="btn sm" data-act="db-reload">Cargar datos actualizados</button>':'')}
+function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.seq&&o.skus){S=o;migrate();return true}}}catch(e){}return false}
+
+/* ========== Lógica de negocio ========== */
+const skuOf=id=>S.skus.find(s=>s.sku===id);
+const locOf=id=>S.locs.find(l=>l.id===id)||MUELLE;
+const custOf=o=>S.cust[o.cust]||{n:String(o.cust),com:'—',dir:'—',x:0,y:0};
+function abcMap(){const s=[...S.skus].sort((a,b)=>b.vel-a.vel);const tot=s.reduce((t,x)=>t+x.vel,0);let c=0;const m={};s.forEach(x=>{const p=c/tot;m[x.sku]=p<.8?'A':p<.95?'B':'C';c+=x.vel});return m}
+const abcShare=()=>{const tot=S.skus.reduce((t,x)=>t+x.vel,0);const s=[...S.skus].sort((a,b)=>b.vel-a.vel);let c=0;const m={};s.forEach(x=>{c+=x.vel;m[x.sku]={share:x.vel/tot,cum:c/tot}});return m};
+function idealZone(sk){return(sk.w>=20||sk.vol>=100)?'R':abcMap()[sk.sku]}
+function usage(locId,ignore){let v=0,k=0;for(const r of S.stock){if(r.loc!==locId||r.id===ignore)continue;const s=skuOf(r.sku);v+=r.qty*s.vol;k+=r.qty*s.w}return{v,k}}
+function reasonFor(sk,l){const ab=abcMap()[sk.sku];const ideal=idealZone(sk);
+ let t=ideal==='R'?'Pesado o voluminoso → reserva':`Rotación ${ab} → zona ${ideal}`;
+ if(l.z!==ideal)t+=` (sin espacio: zona ${l.z})`;
+ if(sk.w>=5&&l.l===1)t+=', nivel bajo por peso';
+ if(S.stock.some(r=>r.loc===l.id&&r.sku===sk.sku))t+=', consolida con mismo SKU';
+ return t}
+function suggestLoc(sk,units=1,ignore){
+ const pref={A:['A','B','C','R'],B:['B','A','C','R'],C:['C','B','A','R'],R:['R','C','B','A']}[idealZone(sk)];
+ let best=null;
+ for(const l of S.locs){if(l.z==='Q')continue;const zi=pref.indexOf(l.z);if(zi<0)continue;
+  if(S.stock.some(r=>r.loc===l.id&&r.id!==ignore&&r.sku!==sk.sku&&r.qty>0))continue;
+  const u=usage(l.id,ignore);const fit=Math.floor(Math.min((l.vol-u.v)/sk.vol,(l.kg-u.k)/sk.w));if(fit<units)continue;
+  const same=S.stock.some(r=>r.loc===l.id&&r.sku===sk.sku&&r.id!==ignore)?-50:0;
+  const score=zi*100+(l.l-1)*(sk.w>=5?30:5)+l.a*4+l.b+same;
+  if(!best||score<best.score)best={loc:l,fit,score}}
+ return best}
+function placeQty(sk,qty,lot,exp,serials,ref,type='Ingreso',status='ok'){
+ const out=[];let rem=qty;const ser=[...serials];
+ while(rem>0){const s=suggestLoc(sk,1);let loc,n;
+  if(s){loc=s.loc;n=Math.min(rem,s.fit)}else{loc=MUELLE;n=rem}
+  const sers=ser.splice(0,n);
+  let row=S.stock.find(r=>r.sku===sk.sku&&r.lot===lot&&r.exp===exp&&r.loc===loc.id&&r.status===status);
+  if(row){row.qty+=n;row.serials.push(...sers)}else{row={id:'ST'+(S.seq.st++),sku:sk.sku,lot,exp,qty:n,res:0,loc:loc.id,serials:sers,status};S.stock.push(row)}
+  mov(type,sk.sku,lot,n,loc.id,ref);
+  out.push({row,loc,n,reason:s?reasonFor(sk,loc):'Sin ubicación libre: queda en muelle'});rem-=n}
+ return out}
+const avail=sku=>S.stock.filter(r=>r.sku===sku&&r.status==='ok').reduce((t,r)=>t+r.qty-r.res,0);
+const onHand=sku=>S.stock.filter(r=>r.sku===sku).reduce((t,r)=>t+r.qty,0);
+const reserved=sku=>S.stock.filter(r=>r.sku===sku).reduce((t,r)=>t+r.res,0);
+const orderKg=o=>o.lines.reduce((t,l)=>t+l.qty*skuOf(l.sku).w,0);
+const orderVol=o=>o.lines.reduce((t,l)=>t+l.qty*skuOf(l.sku).vol,0);
+const orderUnits=o=>o.lines.reduce((t,l)=>t+l.qty,0);
+const orderNeto=o=>o.lines.reduce((t,l)=>t+l.qty*skuOf(l.sku).price,0);
+const canFill=o=>o.lines.every(l=>avail(l.sku)>=l.qty);
+function allocate(orders){
+ const allocs=[],failed=[];const temp=new Map();
+ for(const o of orders){const mine=[];let ok=true;
+  for(const ln of o.lines){let need=ln.qty;
+   const rows=S.stock.filter(r=>r.sku===ln.sku&&r.status==='ok').sort((a,b)=>(a.exp||'9999').localeCompare(b.exp||'9999')||a.lot.localeCompare(b.lot));
+   for(const r of rows){const free=r.qty-r.res-(temp.get(r.id)||0);if(free<=0)continue;const t=Math.min(free,need);mine.push({order:o.id,sku:ln.sku,stockId:r.id,qty:t});temp.set(r.id,(temp.get(r.id)||0)+t);need-=t;if(!need)break}
+   if(need>0){ok=false;break}}
+  if(ok)allocs.push(...mine);else{failed.push(o.id);mine.forEach(m=>temp.set(m.stockId,temp.get(m.stockId)-m.qty))}}
+ return{allocs,failed}}
+function pathKey(locId){const l=locOf(locId);const zi=['A','B','C','R','Q','M'].indexOf(l.z);return zi*10000+l.a*1000+(l.a%2?l.b:99-l.b)*10+l.l}
+function sscc(){const n=S.seq.sscc++;const body='0'+'7801234'+String(n).padStart(9,'0');let sum=0;for(let i=0;i<17;i++){sum+=+body[16-i]*(i%2===0?3:1)}return body+((10-sum%10)%10)}
+const ssccFmt=s=>`${s[0]} ${s.slice(1,8)} ${s.slice(8,17)} ${s[17]}`;
+const lotStatus=exp=>{const d=daysTo(exp);if(d==null)return['—','mute'];if(d<0)return['Vencido','bad'];if(d<=30)return[`${d} d`,'warn'];return[fdate(exp),'']};
+function distKm(a,b){return Math.round(Math.hypot(a.x-b.x,a.y-b.y)*1.3*10)/10}
+
+/* ========== UI helpers ========== */
+function toast(m){const t=document.createElement('div');t.className='tst';t.textContent=m;$('#toast').append(t);setTimeout(()=>t.remove(),3400)}
+function modal(title,html,wide){$('#ov').innerHTML=`<div class="ov" data-bg="1"><div class="modal" ${wide?'style="max-width:940px"':''} role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="mh"><h2>${esc(title)}</h2><button class="btn ghost sm" data-act="close">Cerrar</button></div><div class="mb">${html}</div></div></div>`}
+function closeModal(){$('#ov').innerHTML=''}
+const chip=(t,c='')=>`<span class="chip ${c}">${esc(t)}</span>`;
+const abcB=a=>`<span class="abc ${a}" title="Clase ${a} por rotación">${a}</span>`;
+const bar=(p,cls='')=>`<div class="bar ${cls}"><i style="width:${Math.min(100,Math.max(0,p))}%"></i></div>`;
+const skuName=id=>{const s=skuOf(id);return s?s.name:id};
+function guide(id,what,steps){let open=true;try{open=localStorage.getItem('g-'+id)!=='0'}catch(e){}
+ return `<details class="guide" data-g="${id}" ${open?'open':''}><summary>Cómo funciona este módulo</summary><div class="gb"><div><b>Qué hace</b>${what}</div>${steps.map((s,i)=>`<div><b>${s[0]}</b>${s[1]}</div>`).join('')}</div></details>`}
+function head(t,sub,actions=''){return `<div class="head"><div><h1>${t}</h1><p>${sub}</p></div><div class="row">${actions}</div></div>`}
+function barcodeSVG(code){
+ try{const s=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  JsBarcode(s,'(00)'+code,{format:'CODE128',ean128:true,displayValue:true,fontSize:13,height:58,margin:0,width:2,text:'(00) '+ssccFmt(code)});
+  const w=s.getAttribute('width'),h=s.getAttribute('height');if(w&&h&&!s.getAttribute('viewBox'))s.setAttribute('viewBox',`0 0 ${parseFloat(w)} ${parseFloat(h)}`);
+  s.removeAttribute('width');s.removeAttribute('height');s.setAttribute('style','width:100%;height:auto;max-height:100px');return s.outerHTML
+ }catch(e){return `<div class="note warn">No se pudo cargar la librería de códigos de barras. SSCC: <span class="mono">${code}</span></div>`}}
+function qrSVG(text){try{const q=qrcode(0,'M');q.addData(text);q.make();return q.createSvgTag({cellSize:3,margin:0,scalable:true})}catch(e){return ''}}
+/* ========== Estado de interfaz y navegación ========== */
+const U={view:'resumen',inv:{q:'',mode:'lote'},rec:{open:null,result:null},pick:{sel:new Set(),strat:'wave',wave:null},pack:{order:null,scan:{},box:null,real:'',made:null},ret:{},route:{}};
+const STL={ok:['Disponible','ok'],cuarentena:['Cuarentena','warn'],reacond:['Reacondicionamiento','info'],garantia:['Garantía · RMA','info']};
+const NAV=[
+ {id:'resumen',t:'Resumen',g:''},
+ {id:'recepcion',t:'Recepción',g:'Entrada'},
+ {id:'inventario',t:'Inventario',g:'Almacén'},{id:'slotting',t:'Ubicaciones (slotting)',g:'Almacén'},
+ {id:'picking',t:'Picking',g:'Salida'},{id:'packing',t:'Packing y etiquetas',g:'Salida'},{id:'despacho',t:'Rutas y despacho',g:'Salida'},
+ {id:'devoluciones',t:'Devoluciones',g:'Postventa'},{id:'notas',t:'Notas de crédito',g:'Postventa'}
+];
+const misplaced=()=>S.stock.filter(r=>{const z=locOf(r.loc).z;return r.status==='ok'&&r.qty>0&&z!==idealZone(skuOf(r.sku))});
+function counts(){return{
+ recepcion:S.asn.filter(a=>a.status==='Pendiente').length,
+ slotting:misplaced().length,
+ picking:S.orders.filter(o=>o.status==='Pendiente').length,
+ packing:S.orders.filter(o=>o.status==='Pickeado').length,
+ despacho:S.orders.filter(o=>o.status==='Empacado').length,
+ devoluciones:S.returns.filter(r=>r.status==='Triage').length,
+ notas:S.notes.filter(n=>n.status!=='Sincronizada').length}}
+function renderNav(){const c=counts();let g=null,h=`<div class="brand"><div class="mark"><i></i></div><div><b>Centro Logístico</b><small>Gestión de almacén</small></div></div>`;
+ for(const n of NAV){if(n.g!==g){g=n.g;if(g)h+=`<div class="ngrp">${g}</div>`}
+  const k=c[n.id];h+=`<button class="nitem" data-act="go" data-v="${n.id}" ${U.view===n.id?'aria-current="page"':''}><span>${n.t}</span>${k?`<span class="cnt ${n.id==='slotting'||n.id==='notas'?'hot':''}">${k}</span>`:''}</button>`}
+ h+=`<div class="nfoot">${dbChip()}<button class="btn ghost sm" data-act="theme">Cambiar tema</button><button class="btn ghost sm" data-act="reset">Restablecer datos de ejemplo</button></div>`;
+ $('#nav').innerHTML=h}
+const VIEWS={};
+function render(){renderNav();const v=VIEWS[U.view]||VIEWS.resumen;$('#view').innerHTML=v();save()}
+function go(v){U.view=v;try{history.replaceState(null,'','#'+v)}catch(e){location.hash=v}render();window.scrollTo(0,0)}
+
+/* ========== Resumen ========== */
+VIEWS.resumen=()=>{const c=counts();
+ const ok=S.stock.filter(r=>r.status==='ok');
+ const tot=ok.reduce((t,r)=>t+r.qty,0),res=ok.reduce((t,r)=>t+r.res,0);
+ const soon=ok.filter(r=>r.exp&&daysTo(r.exp)<=30&&r.qty>0);
+ const merma=S.movs.filter(m=>m.type==='Merma').reduce((t,m)=>t+m.qty*(skuOf(m.sku)?.cost||0),0);
+ const vo=S.locs.reduce((t,l)=>t+usage(l.id).v,0),vc=S.locs.reduce((t,l)=>t+l.vol,0);
+ const alerts=[];
+ soon.forEach(r=>alerts.push([daysTo(r.exp)<0?'bad':'warn',`${skuName(r.sku)} · lote ${r.lot} vence en ${daysTo(r.exp)} días (${r.qty} u.)`,'inventario']));
+ if(c.slotting)alerts.push(['warn',`${c.slotting} lotes fuera de su zona ideal`,'slotting']);
+ const mu=S.stock.filter(r=>r.loc==='MUELLE'&&r.qty>0).length;if(mu)alerts.push(['warn',`${mu} lotes sin ubicar en muelle`,'slotting']);
+ S.orders.filter(o=>o.status==='Pendiente'&&!canFill(o)).forEach(o=>alerts.push(['bad',`${o.id} sin stock disponible suficiente`,'picking']));
+ S.notes.filter(n=>n.status==='Error').forEach(n=>alerts.push(['bad',`${n.folio}: error de sincronización con administración`,'notas']));
+ S.asn.filter(a=>a.status==='Pendiente'&&a.eta<=addDays(0)).forEach(a=>alerts.push(['info',`${a.id} de ${a.prov} llega hoy`,'recepcion']));
+ const flow=[['Recepción','ASN por recibir',c.recepcion,'recepcion'],['Picking','Pedidos por preparar',c.picking,'picking'],['Packing','Pedidos por empacar',c.packing,'packing'],['Despacho','Bultos por asignar a ruta',c.despacho,'despacho'],['Postventa','Devoluciones en triage',c.devoluciones,'devoluciones']];
+ return head('Resumen operativo','Estado del flujo completo: de la recepción al despacho y la postventa. Haga clic en una etapa para ir a su módulo.')
+ +`<div class="flow">${flow.map(f=>`<button data-act="go" data-v="${f[3]}"><small>${f[0]}</small><b>${f[2]}</b><br><em>${f[1]}</em></button>`).join('')}</div>`
+ +`<div class="kpis">
+  <div class="panel kpi"><small>Unidades en stock</small><b>${nf.format(tot)}</b><span>${S.skus.length} SKU</span></div>
+  <div class="panel kpi"><small>Disponible</small><b>${nf.format(tot-res)}</b><span>listo para reservar</span></div>
+  <div class="panel kpi"><small>Reservado</small><b>${nf.format(res)}</b><span>en olas de picking</span></div>
+  <div class="panel kpi"><small>Por vencer (30 d)</small><b>${soon.length}</b><span>lotes</span></div>
+  <div class="panel kpi"><small>Ocupación del almacén</small><b>${Math.round(vo/vc*100)}%</b><span>volumen utilizado</span></div>
+  <div class="panel kpi"><small>Merma acumulada</small><b>${clp(merma)}</b><span>a costo</span></div></div>`
+ +`<div class="grid2">
+  <section class="panel"><div class="ph"><h2>Alertas</h2><small>${alerts.length} activas</small></div><div class="pb flush"><div class="list">${alerts.length?alerts.map(a=>`<div class="li"><span>${chip(a[0]==='bad'?'Crítica':a[0]==='warn'?'Atención':'Info',a[0])} ${esc(a[1])}</span><button class="btn ghost sm" data-act="go" data-v="${a[2]}">Ver</button></div>`).join(''):'<div class="empty">Sin alertas.</div>'}</div></div></section>
+  <section class="panel"><div class="ph"><h2>Últimos movimientos</h2><small>Trazabilidad en tiempo real</small></div><div class="pb flush"><div class="list">${S.movs.slice(0,8).map(m=>`<div class="li"><span><b>${esc(m.type)}</b> · ${esc(skuName(m.sku))} <span class="muted">· ${m.qty} u. · <span class="mono">${esc(m.loc||'')}</span></span></span><span class="muted mono">${ftime(m.ts)}</span></div>`).join('')}</div></div></section></div>`}
+
+/* ========== Recepción ========== */
+const asnUnits=a=>a.lines.reduce((t,l)=>t+l.exp,0);
+VIEWS.recepcion=()=>{
+ const list=`<section class="panel"><div class="ph"><h2>Órdenes de compra y avisos (ASN)</h2><small>Lo que debe llegar al muelle</small></div><div class="pb flush scroll"><table><thead><tr><th>ASN</th><th>Proveedor</th><th>OC</th><th>Llegada</th><th class="n">Unidades</th><th>Estado</th><th></th></tr></thead><tbody>${S.asn.slice().reverse().map(a=>`<tr><td class="mono">${a.id}</td><td>${esc(a.prov)}</td><td class="mono">${esc(a.oc||'—')}</td><td>${fdate(a.eta)}</td><td class="n">${nf.format(asnUnits(a))}</td><td>${chip(a.status,a.status==='Recibida'?'ok':a.status==='Pendiente'?'info':'warn')}</td><td class="n">${a.status==='Pendiente'?`<button class="btn sm" data-act="rec-open" data-id="${a.id}">Recibir</button> <button class="btn ghost sm" data-act="asn-del" data-id="${a.id}">Anular</button>`:''}</td></tr>`).join('')}</tbody></table></div></section>`;
+ let work='';const a=S.asn.find(x=>x.id===U.rec.open&&x.status==='Pendiente');
+ if(a){work=`<section class="panel"><div class="ph"><h2>Recibiendo ${a.id}</h2><small>${esc(a.prov)} · registre lo que llegó realmente</small></div><div class="pb stack">
+  ${a.lines.map((l,i)=>{const s=skuOf(l.sku);return `<div class="panel" style="box-shadow:none"><div class="pb stack">
+   <div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(s.name)}</b> <span class="muted mono">${s.sku}</span></div><div>${chip('Esperado: '+l.exp+' u.','info')} ${s.ser?chip('Serializado','acc'):''} ${s.per?chip('Con vencimiento','acc'):''}</div></div>
+   <div class="row"><label class="f" style="width:110px"><span>Cantidad recibida</span><input class="in" id="r-qty-${i}" type="number" min="0" value="${l.exp}"></label>
+    <label class="f" style="width:150px"><span>Lote</span><input class="in" id="r-lot-${i}" placeholder="Ej: L2511"></label>
+    ${s.per?`<label class="f" style="width:160px"><span>Fecha de vencimiento</span><input class="in" id="r-exp-${i}" type="date" min="${addDays(0)}" value="${addDays(180)}"></label>`:''}</div>
+   ${s.ser?`<label class="f"><span>Números de serie (uno por línea; debe coincidir con la cantidad)</span><textarea class="in" id="r-ser-${i}" rows="3" placeholder="Escanee o pegue las series"></textarea></label><div><button class="btn ghost sm" data-act="rec-sim" data-i="${i}">Simular escaneo de series</button></div>`:''}
+  </div></div>`}).join('')}
+  <div class="row"><button class="btn" data-act="rec-confirm" data-id="${a.id}">Confirmar ingreso y ubicar</button><button class="btn ghost" data-act="rec-cancel">Cancelar</button></div></div></section>`}
+ else if(U.rec.result){const r=U.rec.result;work=`<section class="panel"><div class="ph"><h2>Ingreso confirmado · ${r.id}</h2>${chip(r.status,r.status==='Recibida'?'ok':'warn')}</div><div class="pb flush scroll"><table><thead><tr><th>Producto</th><th>Lote</th><th class="n">Cant.</th><th>Ubicación asignada</th><th>Criterio</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${esc(skuName(x.sku))}</td><td class="mono">${esc(x.lot)}</td><td class="n">${x.n}</td><td class="mono"><b>${x.loc}</b></td><td class="muted">${esc(x.reason)}</td></tr>`).join('')}</tbody></table></div>${r.diff.length?`<div class="pb"><div class="note warn">Diferencias: ${r.diff.map(esc).join(' · ')}</div></div>`:''}</section>`}
+ return head('Recepción de mercancía','Registre lo que llega, valide contra el aviso del proveedor y el sistema propone la ubicación de almacenaje.','<button class="btn" data-act="oc-new">Nueva orden de compra</button><button class="btn ghost" data-act="rec-new">Ingreso sin ASN</button>')
+ +guide('rec','Compara lo recibido con lo esperado, captura lote, vencimiento y series, y asigna ubicación según clase ABC, peso y volumen.',[['1. Elija un ASN','Pulse «Recibir» en la entrada que llegó al muelle.'],['2. Registre lo recibido','Cantidad, lote, vencimiento y series. Las diferencias se marcan solas.'],['3. Confirme','El stock queda disponible y verá la ubicación asignada para cada lote.']])
+ +list+work}
+const A={};
+A['rec-open']=el=>{U.rec.open=el.dataset.id;U.rec.result=null;render()};
+A['rec-cancel']=()=>{U.rec.open=null;render()};
+A['rec-sim']=el=>{const i=+el.dataset.i,n=+$('#r-qty-'+i).value||0,sk=U.rec.open;const a=S.asn.find(x=>x.id===sk);const s=skuOf(a.lines[i].sku);const p='SN-'+s.sku.slice(-4)+'-'+String(Math.floor(Math.random()*90)+10);$('#r-ser-'+i).value=Array.from({length:n},(_,k)=>p+String(k+1).padStart(4,'0')).join('\n')};
+A['rec-new']=()=>modal('Ingreso sin ASN',`<div class="stack"><div class="note">Use esta opción cuando la mercancía llega sin aviso previo.</div><div class="row"><label class="f" style="flex:1;min-width:200px"><span>Producto</span><select class="in" id="n-sku">${S.skus.map(s=>`<option value="${s.sku}">${esc(s.name)}</option>`).join('')}</select></label><label class="f" style="width:110px"><span>Cantidad</span><input class="in" id="n-qty" type="number" min="1" value="10"></label></div><div><button class="btn" data-act="rec-new-ok">Crear y recibir</button></div></div>`);
+A['rec-new-ok']=()=>{const sku=$('#n-sku').value,q=Math.max(1,+$('#n-qty').value||1);const id='ASN-LIBRE-'+String(S.seq.asn++).padStart(3,'0');S.asn.push({id,prov:'Sin ASN · ingreso manual',oc:'',eta:addDays(0),status:'Pendiente',lines:[{sku,exp:q}]});U.rec.open=id;U.rec.result=null;closeModal();render()};
+A['rec-confirm']=el=>{const a=S.asn.find(x=>x.id===el.dataset.id);const used=new Set(S.stock.flatMap(r=>r.serials));const plan=[];
+ for(let i=0;i<a.lines.length;i++){const l=a.lines[i],s=skuOf(l.sku);const q=Math.floor(+$('#r-qty-'+i).value);if(!(q>=0)){toast(`Cantidad inválida en ${s.name}`);return}
+  if(q===0){plan.push({l,s,q:0});continue}
+  const lot=$('#r-lot-'+i).value.trim();if(!lot){toast(`Falta el lote de ${s.name}`);return}
+  let exp=null;if(s.per){exp=$('#r-exp-'+i).value;if(!exp||daysTo(exp)<0){toast(`Vencimiento inválido en ${s.name}`);return}}
+  let sers=[];if(s.ser){sers=$('#r-ser-'+i).value.split(/[\s,;]+/).filter(Boolean);if(sers.length!==q){toast(`${s.name}: ${sers.length} series para ${q} unidades`);return}
+   if(new Set(sers).size!==sers.length||sers.some(x=>used.has(x))){toast(`${s.name}: hay series repetidas o ya existentes`);return}sers.forEach(x=>used.add(x))}
+  plan.push({l,s,q,lot,exp,sers})}
+ const rows=[],diff=[];
+ for(const p of plan){p.l.rec=p.q;if(p.q!==p.l.exp)diff.push(`${p.s.name}: esperado ${p.l.exp}, recibido ${p.q}`);if(p.q===0)continue;
+  for(const o of placeQty(p.s,p.q,p.lot,p.exp,p.sers,a.id))rows.push({sku:p.s.sku,lot:p.lot,n:o.n,loc:o.loc.id,reason:o.reason})}
+ a.status=diff.length?'Con diferencias':'Recibida';U.rec={open:null,result:{id:a.id,status:a.status,rows,diff}};toast('Ingreso confirmado y ubicado');render()};
+
+/* ========== Inventario ========== */
+function invRows(){const q=U.inv.q.trim().toLowerCase();
+ return S.stock.filter(r=>r.qty>0).filter(r=>{if(!q)return true;const s=skuOf(r.sku);return[r.sku,s.name,r.lot,r.loc,r.serials.join(' ')].join(' ').toLowerCase().includes(q)}).sort((a,b)=>a.sku.localeCompare(b.sku)||(a.exp||'9').localeCompare(b.exp||'9'))}
+function invTable(){const rows=invRows();const ab=abcMap();
+ if(!rows.length)return '<div class="empty">Sin resultados para esa búsqueda.</div>';
+ if(U.inv.mode==='sku'){const g={};rows.forEach(r=>{(g[r.sku]??={t:0,r:0,a:0,lots:0});const x=g[r.sku];x.t+=r.qty;x.r+=r.res;x.a+=r.status==='ok'?r.qty-r.res:0;x.lots++});
+  return `<table><thead><tr><th>SKU</th><th>Descripción</th><th>ABC</th><th class="n">Lotes</th><th class="n">Total</th><th class="n">Reservado</th><th class="n">Disponible</th></tr></thead><tbody>${Object.entries(g).map(([k,x])=>`<tr><td class="mono">${k}</td><td>${esc(skuName(k))}</td><td>${abcB(ab[k])}</td><td class="n">${x.lots}</td><td class="n">${nf.format(x.t)}</td><td class="n">${x.r?chip(x.r,'warn'):'0'}</td><td class="n"><b>${nf.format(x.a)}</b></td></tr>`).join('')}</tbody></table>`}
+ return `<table><thead><tr><th>SKU</th><th>Descripción</th><th>Lote</th><th>Vence</th><th>Serie</th><th>Ubicación</th><th class="n">Total</th><th class="n">Reservado</th><th class="n">Disponible</th><th>Estado</th></tr></thead><tbody>${rows.map(r=>{const ls=lotStatus(r.exp),st=STL[r.status]||STL.ok;const hit=U.inv.q&&r.serials.find(x=>x.toLowerCase().includes(U.inv.q.trim().toLowerCase()));
+  return `<tr class="clk" data-act="traza" data-id="${r.id}"><td class="mono">${r.sku}</td><td>${esc(skuName(r.sku))}</td><td class="mono">${esc(r.lot)}</td><td>${ls[1]?chip(ls[0],ls[1]):ls[0]}</td><td>${r.serials.length?chip(hit?hit:r.serials.length+' series','acc'):'<span class="muted">—</span>'}</td><td class="mono">${r.loc}</td><td class="n">${nf.format(r.qty)}</td><td class="n">${r.res?chip(r.res,'warn'):'0'}</td><td class="n"><b>${r.status==='ok'?nf.format(r.qty-r.res):0}</b></td><td>${chip(st[0],st[1])}</td></tr>`}).join('')}</tbody></table>`}
+function serialTrace(){const q=U.inv.q.trim().toLowerCase();if(q.length<4)return '';const hits=[];
+ S.orders.forEach(o=>o.lines.forEach(l=>l.serials.forEach(s=>{if(s.toLowerCase().includes(q))hits.push(`<div class="li"><span><span class="mono">${esc(s)}</span> · ${esc(skuName(l.sku))}</span><span>${chip(o.status,o.status==='Despachado'?'ok':'info')} ${o.id} · ${esc(custOf(o).n)}</span></div>`)})));
+ return hits.length?`<section class="panel"><div class="ph"><h2>Series ya asignadas a pedidos</h2><small>Trazabilidad hacia el cliente</small></div><div class="pb flush"><div class="list">${hits.join('')}</div></div></section>`:''}
+VIEWS.inventario=()=>head('Inventario','Cada lote con su vencimiento, series, ubicación y stock disponible frente al reservado.','<button class="btn ghost" data-act="sku-new">Nuevo producto</button>')
+ +guide('inv','Muestra el stock por lote o por SKU. Disponible = total − reservado por pedidos en preparación.',[['Busque','Por SKU, nombre, lote, ubicación o número de serie.'],['Cambie la vista','«Por lote» para trazabilidad, «Por SKU» para el consolidado.'],['Abra un lote','Haga clic en una fila para ver sus series y su historial de movimientos.']])
+ +`<section class="panel"><div class="ph"><div class="row" style="flex:1"><input class="in" id="invq" data-in="invq" style="max-width:340px" placeholder="Buscar SKU, lote, ubicación o serie" value="${esc(U.inv.q)}" aria-label="Buscar en inventario"><div class="seg" role="group" aria-label="Vista"><button data-act="inv-mode" data-m="lote" aria-pressed="${U.inv.mode==='lote'}">Por lote</button><button data-act="inv-mode" data-m="sku" aria-pressed="${U.inv.mode==='sku'}">Por SKU</button></div></div></div><div class="pb flush scroll" id="invtbl">${invTable()}</div></section><div id="invser">${serialTrace()}</div>`;
+A['inv-mode']=el=>{U.inv.mode=el.dataset.m;render()};
+A.traza=el=>{const r=S.stock.find(x=>x.id===el.dataset.id);if(!r)return;const s=skuOf(r.sku);const ls=lotStatus(r.exp);
+ const ms=S.movs.filter(m=>m.sku===r.sku&&m.lot===r.lot).slice(0,25);
+ modal(`${s.name} · lote ${r.lot}`,`<div class="stack"><div class="row">${chip('Ubicación '+r.loc,'acc')} ${chip('Total '+r.qty)} ${chip('Reservado '+r.res,r.res?'warn':'')} ${chip('Disponible '+(r.status==='ok'?r.qty-r.res:0),'ok')} ${r.exp?chip('Vence '+fdate(r.exp),ls[1]||''):''}</div>
+ ${r.serials.length?`<div><b>Series (${r.serials.length})</b><div class="path" style="margin-top:6px">${r.serials.slice(0,60).map(x=>`<span class="chip mono">${esc(x)}</span>`).join('')}${r.serials.length>60?chip('+'+(r.serials.length-60)+' más'):''}</div></div>`:''}
+ <div><b>Historial del lote</b><div class="scroll"><table><thead><tr><th>Hora</th><th>Movimiento</th><th class="n">Cant.</th><th>Ubicación</th><th>Referencia</th></tr></thead><tbody>${ms.map(m=>`<tr><td class="mono">${ftime(m.ts)}</td><td>${esc(m.type)}</td><td class="n">${m.qty}</td><td class="mono">${esc(m.loc||'')}</td><td>${esc(m.ref||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Sin movimientos.</td></tr>'}</tbody></table></div></div></div>`,true)};
+/* ========== Slotting ========== */
+function relocate(row){const sk=skuOf(row.sku);const s=suggestLoc(sk,row.qty,row.id);
+ if(!s||s.loc.id===row.loc||s.loc.z!==idealZone(sk))return false;
+ const from=row.loc;row.loc=s.loc.id;mov('Reubicación',row.sku,row.lot,row.qty,row.loc,`${from} → ${row.loc}`);
+ const twin=S.stock.find(r=>r!==row&&r.sku===row.sku&&r.lot===row.lot&&r.exp===row.exp&&r.loc===row.loc&&r.status===row.status);
+ if(twin){twin.qty+=row.qty;twin.res+=row.res;twin.serials.push(...row.serials);S.stock=S.stock.filter(r=>r!==row)}
+ return true}
+function relocateAll(skuId){let ok=0,no=0;for(const r of misplaced().filter(r=>!skuId||r.sku===skuId)){relocate(r)?ok++:no++}
+ toast(ok?`${ok} lotes reubicados${no?`, ${no} sin espacio en la zona ideal`:''}`:'No hay espacio en la zona ideal para reubicar');render()}
+function cellHtml(l){const rows=S.stock.filter(r=>r.loc===l.id&&r.qty>0);const u=usage(l.id);const p=Math.max(u.v/l.vol,u.k/l.kg);
+ const t=rows.length?`${l.id} · ${[...new Set(rows.map(r=>skuName(r.sku)))].join(', ')} · ${Math.round(p*100)}% ocupado`:`${l.id} · libre`;
+ const bg=rows.length?`color-mix(in srgb,var(--accent) ${Math.max(18,Math.min(90,p*100+18))}%,var(--sunk))`:'var(--sunk)';
+ return `<div title="${esc(t)}" style="height:34px;border-radius:6px;background:${bg};border:1px solid var(--line);display:grid;place-items:center;font:500 10px var(--mono);color:${rows.length?'var(--ink)':'var(--muted)'}">${rows.length?[...new Set(rows.map(r=>r.sku.slice(-4)))][0]:l.l}</div>`}
+VIEWS.slotting=()=>{const ab=abcMap(),sh=abcShare(),mp=misplaced();
+ const zs=['A','B','C','R','Q'].map(z=>{const ls=S.locs.filter(l=>l.z===z);const v=ls.reduce((t,l)=>t+usage(l.id).v,0),vc=ls.reduce((t,l)=>t+l.vol,0),k=ls.reduce((t,l)=>t+usage(l.id).k,0),kc=ls.reduce((t,l)=>t+l.kg,0);return{z,n:ls.length,used:ls.filter(l=>S.stock.some(r=>r.loc===l.id&&r.qty>0)).length,pv:v/vc*100,pk:k/kc*100}});
+ const rowsSku=S.skus.map(s=>({s,a:ab[s.sku],ideal:idealZone(s),cur:[...new Set(S.stock.filter(r=>r.sku===s.sku&&r.qty>0).map(r=>locOf(r.loc).z))],bad:mp.filter(r=>r.sku===s.sku).length})).sort((a,b)=>b.s.vel-a.s.vel);
+ return head('Ubicaciones (slotting)','Cada SKU debe vivir en la zona que le corresponde por rotación, peso y volumen.',`<button class="btn" data-act="slot-all" ${mp.length?'':'disabled'}>Aplicar ${mp.length} sugerencias</button>`)
+ +guide('slot','Clasifica los SKU por rotación (ABC) y propone la mejor posición según capacidad de volumen y peso de cada ubicación.',[['Regla ABC','A = 80% de los movimientos, B = siguiente 15%, C = el resto. A va cerca del despacho y a nivel bajo.'],['Pesados y voluminosos','Más de 20 kg o 100 L por unidad van a Reserva, a nivel de piso.'],['Reubicar','Pulse «Reubicar» por SKU o aplique todas las sugerencias. Pruebe cambiar la rotación para ver cómo se reclasifica.']])
+ +`<div class="grid2"><section class="panel"><div class="ph"><h2>Ocupación por zona</h2><small>Volumen · peso</small></div><div class="pb stack">${zs.map(x=>`<div><div class="row" style="justify-content:space-between;align-items:center"><span><b>${ZN[x.z]}</b></span><span class="muted mono">${x.used}/${x.n} posiciones</span></div><div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px;margin-top:4px"><span class="muted" style="width:56px">Volumen</span>${bar(x.pv,x.pv>85?'bad':x.pv>65?'warn':'')}<span class="mono" style="width:40px;text-align:right">${Math.round(x.pv)}%</span></div><div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px;margin-top:2px"><span class="muted" style="width:56px">Peso</span>${bar(x.pk,x.pk>85?'bad':x.pk>65?'warn':'')}<span class="mono" style="width:40px;text-align:right">${Math.round(x.pk)}%</span></div></div>`).join('')}</div></section>
+ <section class="panel"><div class="ph"><h2>Mapa del almacén</h2><small>Más oscuro = más ocupado · número = SKU</small></div><div class="pb stack">${['A','B','C','R','Q'].map(z=>`<div><div class="muted" style="margin-bottom:6px;font-size:12px">${ZN[z]}</div><div style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px">${S.locs.filter(l=>l.z===z).map(cellHtml).join('')}</div></div>`).join('')}</div></section></div>`
+ +`<section class="panel"><div class="ph"><h2>Clasificación y ubicación por SKU</h2><small>Edite la rotación mensual para simular</small></div><div class="pb flush scroll"><table><thead><tr><th>ABC</th><th>SKU</th><th class="n">Rotación (u/mes)</th><th>Participación</th><th class="n">Peso u.</th><th class="n">Vol. u.</th><th>Zona ideal</th><th>Ubicado en</th><th></th></tr></thead><tbody>${rowsSku.map(r=>`<tr><td>${abcB(r.a)}</td><td><b>${esc(r.s.name)}</b><br><span class="muted mono">${r.s.sku}</span></td><td class="n"><input class="in mono" style="width:84px;text-align:right" type="number" min="1" value="${r.s.vel}" data-chg="vel" data-id="${r.s.sku}" aria-label="Rotación de ${esc(r.s.name)}"></td><td style="min-width:130px"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px">${bar(sh[r.s.sku].share*100*3)}<span class="mono muted">${Math.round(sh[r.s.sku].share*100)}%</span></div></td><td class="n mono">${r.s.w} kg</td><td class="n mono">${r.s.vol} L</td><td>${chip(ZSHORT[r.ideal],'acc')}</td><td>${r.cur.map(z=>chip(ZSHORT[z],z===r.ideal?'ok':'warn')).join(' ')||'—'}</td><td class="n">${r.bad?`<button class="btn sm" data-act="slot-sku" data-id="${r.s.sku}">Reubicar</button>`:chip('Correcto','ok')}</td></tr>`).join('')}</tbody></table></div></section>`}
+A['slot-all']=()=>relocateAll();
+A['slot-sku']=el=>relocateAll(el.dataset.id);
+
+/* ========== Picking ========== */
+const STRAT={wave:['Ola','Libera los pedidos juntos con una sola ruta ordenada por ubicación. Cada línea se prepara por pedido. Ideal con corte horario o prioridad.'],zone:['Por zonas','Divide la ola por zona del almacén: un operador por zona prepara en paralelo y luego se consolida. Ideal con muchas líneas.'],batch:['Por lotes','Agrupa el mismo SKU de varios pedidos en una sola tarea y luego lo reparte. Ideal con muchos pedidos pequeños y SKU repetidos.']};
+function createWave(){
+ const orders=[...U.pick.sel].map(id=>S.orders.find(o=>o.id===id)).filter(o=>o&&o.status==='Pendiente').sort((a,b)=>(a.prio==='Express'?0:1)-(b.prio==='Express'?0:1));
+ if(!orders.length){toast('Seleccione al menos un pedido');return}
+ const{allocs,failed}=allocate(orders);if(!allocs.length){toast('Sin stock disponible para los pedidos seleccionados');return}
+ const ok=orders.filter(o=>!failed.includes(o.id));
+ allocs.forEach(a=>{S.stock.find(r=>r.id===a.stockId).res+=a.qty});
+ const type=U.pick.strat;let tasks=[];const mk=(row,parts)=>({id:'T'+tasks.length,stockId:row.id,loc:row.loc,zone:locOf(row.loc).z,sku:row.sku,lot:row.lot,exp:row.exp,parts,done:false});
+ if(type==='batch'){const g=new Map();allocs.forEach(a=>{if(!g.has(a.stockId))g.set(a.stockId,[]);g.get(a.stockId).push({order:a.order,qty:a.qty})});g.forEach((parts,sid)=>tasks.push(mk(S.stock.find(r=>r.id===sid),parts)))}
+ else allocs.forEach(a=>tasks.push(mk(S.stock.find(r=>r.id===a.stockId),[{order:a.order,qty:a.qty}])));
+ tasks.sort((a,b)=>pathKey(a.loc)-pathKey(b.loc));tasks.forEach((t,i)=>t.id='T'+i);
+ const id='OLA-'+String(S.seq.wave++).padStart(4,'0');
+ S.waves.unshift({id,type,orders:ok.map(o=>o.id),tasks,status:'Abierta',created:now(),lines:ok.reduce((t,o)=>t+o.lines.length,0)});
+ ok.forEach(o=>{o.status='En ola';o.wave=id});U.pick.sel=new Set();
+ toast(`${id} creada con ${ok.length} pedidos`+(failed.length?` · sin stock: ${failed.join(', ')}`:''));render()}
+function doTask(w,t){if(t.done)return;const row=S.stock.find(r=>r.id===t.stockId);
+ for(const p of t.parts){row.qty-=p.qty;row.res-=p.qty;const o=S.orders.find(x=>x.id===p.order);const ln=o.lines.find(l=>l.sku===t.sku);
+  if(row.serials.length)ln.serials.push(...row.serials.splice(0,p.qty));mov('Picking',t.sku,t.lot,p.qty,row.loc,`${p.order} · ${w.id}`)}
+ t.done=true;
+ for(const oid of w.orders){const o=S.orders.find(x=>x.id===oid);if(o.status==='En ola'&&!w.tasks.some(x=>!x.done&&x.parts.some(p=>p.order===oid)))o.status='Pickeado'}
+ if(w.tasks.every(x=>x.done))w.status='Completada';
+ S.stock=S.stock.filter(r=>r.qty>0||r.res>0)}
+function taskRow(w,t,batch){const s=skuOf(t.sku);const ls=lotStatus(t.exp);
+ return `<tr><td style="width:96px">${t.done?chip('Hecho','ok'):`<button class="btn sm" data-act="task" data-w="${w.id}" data-t="${t.id}">Confirmar</button>`}</td><td class="mono"><b>${t.loc}</b></td><td>${esc(s.name)}${s.ser?` ${chip('series','acc')}`:''}</td><td class="mono">${esc(t.lot)} ${t.exp?`<span class="muted">· ${ls[1]?ls[0]:fdate(t.exp)}</span>`:''}</td><td class="n"><b>${t.parts.reduce((x,p)=>x+p.qty,0)}</b></td><td>${batch?t.parts.map(p=>chip(p.order+' ×'+p.qty)).join(' '):t.parts.map(p=>`<span class="mono">${p.order}</span>`).join(', ')}</td></tr>`}
+const taskHead=(batch)=>`<thead><tr><th></th><th>Ubicación</th><th>Producto</th><th>Lote</th><th class="n">Cant.</th><th>${batch?'Repartir a':'Pedido'}</th></tr></thead>`;
+function wavePanel(w){const done=w.tasks.filter(t=>t.done).length,p=done/w.tasks.length*100;const open=w.status==='Abierta';
+ let body='';
+ if(w.type==='zone'){const zs=[...new Set(w.tasks.map(t=>t.zone))].sort((a,b)=>'ABCRQM'.indexOf(a)-'ABCRQM'.indexOf(b));
+  body=zs.map((z,i)=>{const ts=w.tasks.filter(t=>t.zone===z);const d=ts.filter(t=>t.done).length;return `<div><div class="li" style="background:var(--sunk)"><span><b>${ZN[z]}</b> <span class="muted">· Operador ${i+1}</span></span><span>${d===ts.length?chip('Zona completa','ok'):chip(d+'/'+ts.length,'info')}</span></div><div class="scroll"><table>${taskHead()}<tbody>${ts.map(t=>taskRow(w,t)).join('')}</tbody></table></div></div>`}).join('')
+  +(open?'':'')+`<div class="li"><span class="muted">Cuando todas las zonas terminan, los pedidos se consolidan en el muelle de packing.</span></div>`}
+ else body=`<div class="scroll"><table>${taskHead(w.type==='batch')}<tbody>${w.tasks.map(t=>taskRow(w,t,w.type==='batch')).join('')}</tbody></table></div>`;
+ const lines=w.lines;
+ return `<section class="panel"><div class="ph"><div><h2>${w.id} · ${STRAT[w.type][0]}</h2><small>${w.orders.join(', ')}</small></div><div class="row" style="align-items:center">${chip(w.status,open?'info':'ok')}${open?`<button class="btn sm" data-act="wave-all" data-w="${w.id}">Completar todo</button>${done===0?`<button class="btn ghost sm" data-act="wave-cancel" data-w="${w.id}">Cancelar ola</button>`:''}`:''}</div></div>
+ <div class="pb"><div class="row" style="flex-wrap:nowrap;align-items:center;gap:10px">${bar(p)}<span class="mono">${done}/${w.tasks.length}</span></div><p class="sub" style="margin-top:6px">${lines} líneas de pedido → ${w.tasks.length} tareas de picking${w.type==='batch'&&lines>w.tasks.length?` (${Math.round((1-w.tasks.length/lines)*100)}% menos viajes)`:''}. Reservas aplicadas por FEFO: primero lo que vence antes.</p></div><div class="pb flush">${body}</div></section>`}
+VIEWS.picking=()=>{const pend=S.orders.filter(o=>o.status==='Pendiente');const sel=U.pick.sel;
+ const zonesOf=o=>[...new Set(o.lines.flatMap(l=>S.stock.filter(r=>r.sku===l.sku&&r.status==='ok'&&r.qty>0).slice(0,1).map(r=>locOf(r.loc).z)))].join(' · ');
+ const open=S.waves.filter(w=>w.status==='Abierta'),closed=S.waves.filter(w=>w.status!=='Abierta');
+ return head('Picking','Agrupe pedidos en una ola y elija cómo se preparan. El stock se reserva al crear la ola.','<button class="btn ghost" data-act="ped-new">Nuevo pedido</button>')
+ +guide('pick','Reserva stock por FEFO y genera la lista de tareas ordenada por recorrido, por zona o consolidada por SKU.',[['1. Seleccione pedidos','Los marcados «Sin stock» no se pueden incluir.'],['2. Elija la estrategia','Ola, por zonas o por lotes. Abajo se explica cuándo conviene cada una.'],['3. Confirme tareas','Cada confirmación descuenta stock y asigna series. Al terminar, el pedido pasa a Packing.']])
+ +`<div class="split"><section class="panel"><div class="ph"><h2>Pedidos pendientes</h2><div class="row"><button class="btn ghost sm" data-act="pick-all">Seleccionar con stock</button><button class="btn ghost sm" data-act="pick-none">Limpiar</button></div></div><div class="pb flush">${pend.length?pend.map(o=>{const f=canFill(o);return `<label class="chk" style="${f?'':'opacity:.6;cursor:not-allowed'}"><input type="checkbox" data-act="pick-toggle" data-id="${o.id}" ${sel.has(o.id)?'checked':''} ${f?'':'disabled'}><span style="flex:1;min-width:0"><b>${o.id}</b> · ${esc(custOf(o).n)} <span class="muted">· ${esc(custOf(o).com)}</span><br><span class="muted">${o.lines.length} líneas · ${orderUnits(o)} u. · ${kgf(orderKg(o))}</span></span><span>${o.prio==='Express'?chip('Express','warn'):chip('Estándar')} ${f?'':chip('Sin stock','bad')}</span></label>`}).join(''):'<div class="empty">No hay pedidos pendientes. Todos están en preparación o despachados.</div>'}</div></section>
+ <section class="panel"><div class="ph"><h2>Estrategia</h2></div><div class="pb stack"><div class="seg" role="group" aria-label="Estrategia">${Object.entries(STRAT).map(([k,v])=>`<button data-act="strat" data-s="${k}" aria-pressed="${U.pick.strat===k}">${v[0]}</button>`).join('')}</div><div class="note">${STRAT[U.pick.strat][1]}</div><button class="btn" data-act="wave-new" ${sel.size?'':'disabled'}>Generar con ${sel.size} pedido${sel.size===1?'':'s'}</button></div></section></div>`
+ +open.map(wavePanel).join('')
+ +(closed.length?`<section class="panel"><div class="ph"><h2>Olas completadas</h2></div><div class="pb flush"><div class="list">${closed.slice(0,5).map(w=>`<div class="li"><span><b>${w.id}</b> · ${STRAT[w.type][0]} <span class="muted">· ${w.orders.join(', ')}</span></span>${chip(w.tasks.length+' tareas','ok')}</div>`).join('')}</div></div></section>`:'')}
+A.strat=el=>{U.pick.strat=el.dataset.s;render()};
+A['pick-toggle']=el=>{el.checked?U.pick.sel.add(el.dataset.id):U.pick.sel.delete(el.dataset.id);render()};
+A['pick-all']=()=>{S.orders.filter(o=>o.status==='Pendiente'&&canFill(o)).forEach(o=>U.pick.sel.add(o.id));render()};
+A['pick-none']=()=>{U.pick.sel=new Set();render()};
+A['wave-new']=createWave;
+A.task=el=>{const w=S.waves.find(x=>x.id===el.dataset.w);doTask(w,w.tasks.find(t=>t.id===el.dataset.t));render()};
+A['wave-all']=el=>{const w=S.waves.find(x=>x.id===el.dataset.w);w.tasks.forEach(t=>doTask(w,t));toast(`${w.id} completada: pedidos listos para empacar`);render()};
+A['wave-cancel']=el=>{const w=S.waves.find(x=>x.id===el.dataset.w);w.tasks.forEach(t=>{const r=S.stock.find(x=>x.id===t.stockId);t.parts.forEach(p=>{r.res-=p.qty})});w.orders.forEach(id=>{const o=S.orders.find(x=>x.id===id);o.status='Pendiente';o.wave=null});S.waves=S.waves.filter(x=>x!==w);toast('Ola cancelada y reservas liberadas');render()};
+/* ========== Packing y etiquetado ========== */
+function labelHtml(p){const o=S.orders.find(x=>x.id===p.order),c=custOf(o);const qr=qrSVG(`WMS|${p.sscc}|${o.id}|${p.i}/${p.n}|${p.kg.toFixed(2)}kg`);
+ return `<div class="label"><div class="lrow"><span class="sm">Remitente · ${esc(DEPOT.name)}</span><span class="sm"><b>${o.prio==='Express'?'EXPRESS':'ESTÁNDAR'}</b></span></div><hr><div class="sm">Destinatario</div><div class="big">${esc(c.n)}</div><div>${esc(c.dir)}<br><b>${esc(c.com)}</b></div><hr>
+ <div class="lrow"><div><div class="sm">Pedido</div><b>${o.id}</b></div><div><div class="sm">Bulto</div><b>${p.i} / ${p.n}</b></div><div><div class="sm">Peso</div><b>${p.kg.toFixed(2)} kg</b></div>${qr?`<div style="width:78px;flex:none">${qr}</div>`:''}</div><hr>${barcodeSVG(p.sscc)}<div class="sm" style="text-align:center">GS1-128 · SSCC-18</div></div>`}
+function recBox(o){const v=orderVol(o)/.7,k=orderKg(o);return BOXES.find(b=>b.vol>=v)||BOXES[BOXES.length-1]}
+function packCalc(o){const box=BOXES.find(b=>b.id===(U.pack.box||recBox(o).id));const kg=orderKg(o);const n=Math.max(1,Math.ceil(kg/box.max));return{box,n,exp:kg+box.tare*n,rec:recBox(o)}}
+const scanned=(o)=>o.lines.every(l=>(U.pack.scan[l.sku]||0)>=l.qty);
+function weightState(o){const c=packCalc(o);const r=parseFloat(String(U.pack.real).replace(',','.'));if(!(r>0))return{r:null,ok:false,txt:'Pese el bulto para validar'};
+ const tol=Math.max(.05,c.exp*.03);const d=r-c.exp;return{r,d,tol,ok:Math.abs(d)<=tol,txt:`${d>=0?'+':''}${d.toFixed(2)} kg frente al esperado · tolerancia ±${tol.toFixed(2)} kg`}}
+VIEWS.packing=()=>{const q=S.orders.filter(o=>o.status==='Pickeado');const o=S.orders.find(x=>x.id===U.pack.order&&x.status==='Pickeado');
+ let work='';
+ if(o){const c=packCalc(o),ws=weightState(o),sc=scanned(o);const auth=U.pack.auth;
+  work=`<section class="panel"><div class="ph"><h2>${o.id} · ${esc(custOf(o).n)}</h2><small>${esc(custOf(o).com)} · ${o.prio}</small></div><div class="pb stack">
+  <div><b>1. Verificación de contenido</b><div class="row" style="margin:8px 0"><label class="f" style="flex:1;min-width:200px;max-width:320px"><span>Escanee SKU (o escriba y pulse Enter)</span><input class="in mono" id="scanin" data-in="scan" placeholder="SKU-1002"></label><button class="btn ghost sm" data-act="pack-allok">Marcar todo verificado</button></div>
+  <div class="scroll"><table><thead><tr><th>Producto</th><th class="n">Pedido</th><th class="n">Verificado</th><th></th></tr></thead><tbody>${o.lines.map(l=>{const n=U.pack.scan[l.sku]||0;return `<tr><td>${esc(skuName(l.sku))} <span class="muted mono">${l.sku}</span>${l.serials.length?`<br><span class="muted mono" style="font-size:11px">${esc(l.serials.slice(0,4).join(' · '))}${l.serials.length>4?' …':''}</span>`:''}</td><td class="n">${l.qty}</td><td class="n"><b>${n}</b></td><td class="n">${n>=l.qty?chip('OK','ok'):`<button class="btn ghost sm" data-act="pack-scan" data-sku="${l.sku}">+1</button>`}</td></tr>`}).join('')}</tbody></table></div></div>
+  <div><b>2. Embalaje y peso</b><div class="row" style="margin:8px 0;align-items:flex-end"><label class="f" style="width:240px"><span>Embalaje (sugerido: ${c.rec.name})</span><select class="in" data-chg="pack-box">${BOXES.map(b=>`<option value="${b.id}" ${b.id===c.box.id?'selected':''}>${b.name} · ${b.dim} cm · máx ${b.max} kg</option>`).join('')}</select></label>
+  <label class="f" style="width:150px"><span>Peso medido (kg)</span><input class="in mono" id="realkg" data-in="real" inputmode="decimal" value="${esc(U.pack.real)}" placeholder="0,00"></label><button class="btn ghost sm" data-act="pack-sim">Simular pesaje</button></div>
+  <div class="row"><span>${chip('Contenido '+kgf(orderKg(o)))}</span><span>${chip('Embalaje '+kgf(c.box.tare*c.n))}</span><span>${chip('Esperado '+kgf(c.exp),'acc')}</span>${c.n>1?chip(c.n+' bultos por límite de '+c.box.max+' kg','warn'):''}</div>
+  <div id="wstate" style="margin-top:8px"><div class="note ${ws.r==null?'':ws.ok?'ok':'bad'}">${ws.txt}</div>${ws.r!=null&&!ws.ok?`<label class="chk" style="padding:8px 0 0;border:0"><input type="checkbox" data-act="pack-auth" ${auth?'checked':''}><span>Supervisor autoriza el despacho con esta diferencia</span></label>`:''}</div></div>
+  <div><b>3. Etiquetas</b><div class="row" style="margin-top:8px"><button class="btn" id="packmake" data-act="pack-make" ${sc&&(ws.ok||(ws.r!=null&&auth))?'':'disabled'}>Generar ${c.n>1?c.n+' etiquetas':'etiqueta'} y cerrar empaque</button>${sc?'':'<span class="sub">Verifique todo el contenido primero.</span>'}</div></div></div></section>`}
+ else if(U.pack.made){work=`<section class="panel"><div class="ph"><h2>Etiquetas generadas</h2>${chip('Pedido empacado','ok')}</div><div class="pb"><div class="row" style="align-items:flex-start">${U.pack.made.map(id=>labelHtml(S.packs.find(p=>p.id===id))).join('')}</div></div></section>`}
+ else work=`<section class="panel"><div class="empty">${q.length?'Seleccione un pedido de la lista para empacarlo.':'No hay pedidos listos para empacar. Complete una ola en Picking.'}</div></section>`;
+ const packs=S.packs.slice().reverse();
+ return head('Packing y etiquetado','Verifique el contenido, valide el peso y genere la etiqueta de despacho con código GS1-128 y QR.')
+ +guide('pack','Compara lo preparado con el pedido, valida el peso real contra el teórico y emite una etiqueta SSCC-18 única por bulto.',[['1. Verifique','Escanee cada SKU. Debe coincidir con las cantidades del pedido.'],['2. Pese','Si el peso difiere más de 3% del esperado, revise el contenido o pida autorización.'],['3. Etiquete','Cada bulto recibe un SSCC propio. El pedido queda listo para asignar a ruta.']])
+ +`<div class="split"><section class="panel"><div class="ph"><h2>Listos para empacar</h2><small>${q.length}</small></div><div class="pb flush"><div class="list">${q.map(x=>`<div class="li" style="${x.id===U.pack.order?'background:var(--accent-soft)':''}"><span><b>${x.id}</b> · ${esc(custOf(x).n)}<br><span class="muted">${orderUnits(x)} u. · ${kgf(orderKg(x))}</span></span><button class="btn sm ${x.id===U.pack.order?'':'ghost'}" data-act="pack-open" data-id="${x.id}">Empacar</button></div>`).join('')||'<div class="empty">Sin pedidos.</div>'}</div></div></section><div class="stack" style="min-width:0">${work}</div></div>`
+ +`<section class="panel"><div class="ph"><h2>Bultos etiquetados</h2><small>${packs.length}</small></div><div class="pb flush scroll"><table><thead><tr><th>SSCC</th><th>Pedido</th><th>Bulto</th><th class="n">Peso</th><th>Estado</th><th></th></tr></thead><tbody>${packs.map(p=>{const o=S.orders.find(x=>x.id===p.order);return `<tr><td class="mono">${ssccFmt(p.sscc)}</td><td>${p.order}</td><td>${p.i}/${p.n}</td><td class="n">${kgf(p.kg)}</td><td>${chip(o.status==='Despachado'?'Despachado':o.route?'En ruta':'En muelle',o.status==='Despachado'?'ok':o.route?'info':'')}</td><td class="n"><button class="btn ghost sm" data-act="label" data-id="${p.id}">Ver etiqueta</button></td></tr>`}).join('')||'<tr><td colspan="6" class="muted">Aún no hay bultos.</td></tr>'}</tbody></table></div></section>`};
+A['pack-open']=el=>{U.pack={order:el.dataset.id,scan:{},box:null,real:'',made:null,auth:false};render()};
+A['pack-scan']=el=>{const k=el.dataset.sku;U.pack.scan[k]=(U.pack.scan[k]||0)+1;render()};
+A['pack-allok']=()=>{const o=S.orders.find(x=>x.id===U.pack.order);o.lines.forEach(l=>U.pack.scan[l.sku]=l.qty);render()};
+A['pack-sim']=()=>{const o=S.orders.find(x=>x.id===U.pack.order);U.pack.real=(packCalc(o).exp*(1+(Math.random()-.5)*.02)).toFixed(2);render()};
+A['pack-auth']=el=>{U.pack.auth=el.checked;render()};
+A['pack-make']=()=>{const o=S.orders.find(x=>x.id===U.pack.order);const c=packCalc(o),ws=weightState(o);const made=[];
+ for(let i=1;i<=c.n;i++){const p={id:'BUL-'+String(S.seq.pack++).padStart(4,'0'),order:o.id,i,n:c.n,sscc:sscc(),kg:ws.r/c.n,box:c.box.id,created:now(),diff:ws.ok?0:ws.d};S.packs.push(p);made.push(p.id);mov('Empaque','','',1,'PACK',`${o.id} · ${p.id}`)}
+ o.status='Empacado';U.pack={order:null,scan:{},box:null,real:'',made,auth:false};toast('Etiquetas generadas');render()};
+A.label=el=>{const p=S.packs.find(x=>x.id===el.dataset.id);modal(`Etiqueta ${p.id}`,`<div class="row" style="align-items:flex-start;gap:18px">${labelHtml(p)}<div class="stack" style="flex:1;min-width:200px"><div class="note">SSCC <span class="mono">${ssccFmt(p.sscc)}</span><br>El código GS1-128 usa el identificador de aplicación (00). El QR contiene SSCC, pedido, bulto y peso.</div><button class="btn ghost" data-act="copy" data-t="${p.sscc}">Copiar SSCC</button></div></div>`)};
+A.copy=async el=>{try{await navigator.clipboard.writeText(el.dataset.t);toast('Copiado')}catch(e){toast('Seleccione el texto y copie manualmente')}};
+
+/* ========== Devoluciones ========== */
+const MOTIVOS=['Arrepentimiento de compra','Defecto de fábrica','Producto equivocado','Dañado en transporte','Producto vencido o en mal estado'];
+const CONDS={sellado:'Sellado, sin uso',abierto:'Abierto, funciona',defecto:'Con falla funcional',danado:'Dañado físicamente',vencido:'Vencido o en mal estado'};
+const DESTS={reingreso:['Reingreso a stock','ok'],reacond:['Reacondicionamiento','info'],garantia:['Garantía · RMA proveedor','acc'],merma:['Merma','bad']};
+function triage(f,sk){
+ if(f.cond==='vencido'||f.motivo===MOTIVOS[4])return['merma','Producto vencido o en mal estado: no es recuperable.'];
+ if(f.cond==='danado')return['merma','Daño físico: no es recuperable.'+(f.motivo===MOTIVOS[3]?' Registre reclamo al transportista.':'')];
+ if(f.cond==='defecto'){if(f.gar&&!sk.per)return['garantia','Falla funcional con garantía vigente: se devuelve al proveedor (RMA).'];
+  return sk.cost>=50000&&!sk.per?['reacond','Falla fuera de garantía: la reparación puede recuperar el valor del producto.']:['merma','Falla fuera de garantía y bajo costo de reposición: no conviene reparar.']}
+ if(f.cond==='abierto')return sk.per?['merma','Producto perecible abierto: no se puede revender.']:['reacond','Abierto o probado: requiere prueba, limpieza y reempaque.'];
+ if(sk.per&&(!f.exp||daysTo(f.exp)<30))return['merma','Vida útil restante menor a 30 días: no se reingresa.'];
+ return['reingreso','Sellado y sin uso: vuelve a stock disponible.']}
+const retDefault=()=>{const o=S.orders.find(x=>x.status==='Despachado');return o?{order:o.id,sku:o.lines[0].sku,qty:1,serial:'',motivo:MOTIVOS[0],cond:'sellado',gar:true,lot:'',exp:''}:null};
+function returnedQty(oid,sku){return S.returns.filter(r=>r.order===oid&&r.sku===sku).reduce((t,r)=>t+r.qty,0)}
+function placeQ(sk,qty,lot,exp,serials,status,ref,type){const l=S.locs.filter(x=>x.z==='Q').find(x=>{const u=usage(x.id);return Math.min((x.vol-u.v)/sk.vol,(x.kg-u.k)/sk.w)>=qty});const id=l?l.id:'MUELLE';
+ const row={id:'ST'+(S.seq.st++),sku:sk.sku,lot,exp,qty,res:0,loc:id,serials:[...serials],status};S.stock.push(row);mov(type,sk.sku,lot,qty,id,ref);return row}
+VIEWS.devoluciones=()=>{if(!U.ret.f)U.ret.f=retDefault();const f=U.ret.f;const disp=S.orders.filter(o=>o.status==='Despachado');
+ let form='';
+ if(f){const o=S.orders.find(x=>x.id===f.order)||disp[0];const ln=o.lines.find(l=>l.sku===f.sku)||o.lines[0];const sk=skuOf(ln.sku);const left=ln.qty-returnedQty(o.id,ln.sku);const t=triage(f,sk);
+  form=`<section class="panel"><div class="ph"><h2>Registrar devolución</h2></div><div class="pb stack">
+  <div class="row"><label class="f" style="flex:1;min-width:150px"><span>Pedido original</span><select class="in" data-chg="rf" data-k="order">${disp.map(x=>`<option value="${x.id}" ${x.id===o.id?'selected':''}>${x.id} · ${esc(custOf(x).n)}</option>`).join('')}</select></label>
+  <label class="f" style="flex:1;min-width:180px"><span>Producto</span><select class="in" data-chg="rf" data-k="sku">${o.lines.map(l=>`<option value="${l.sku}" ${l.sku===ln.sku?'selected':''}>${esc(skuName(l.sku))}</option>`).join('')}</select></label></div>
+  <div class="row">${sk.ser?`<label class="f" style="flex:1;min-width:170px"><span>Serie del producto</span><select class="in" data-chg="rf" data-k="serial">${ln.serials.map(s=>`<option ${s===f.serial?'selected':''}>${esc(s)}</option>`).join('')}</select></label>`:`<label class="f" style="width:110px"><span>Cantidad (máx ${left})</span><input class="in" type="number" min="1" max="${left}" value="${f.qty}" data-chg="rf" data-k="qty"></label>`}
+  <label class="f" style="flex:1;min-width:190px"><span>Motivo del cliente</span><select class="in" data-chg="rf" data-k="motivo">${MOTIVOS.map(m=>`<option ${m===f.motivo?'selected':''}>${m}</option>`).join('')}</select></label></div>
+  <div class="row"><label class="f" style="flex:1;min-width:190px"><span>Estado físico al recibir</span><select class="in" data-chg="rf" data-k="cond">${Object.entries(CONDS).map(([k,v])=>`<option value="${k}" ${k===f.cond?'selected':''}>${v}</option>`).join('')}</select></label>
+  ${sk.per?`<label class="f" style="width:130px"><span>Lote</span><input class="in" value="${esc(f.lot)}" data-chg="rf" data-k="lot" placeholder="Opcional"></label><label class="f" style="width:150px"><span>Vencimiento</span><input class="in" type="date" value="${f.exp}" data-chg="rf" data-k="exp"></label>`:''}</div>
+  ${!sk.per?`<label class="chk" style="padding:0;border:0"><input type="checkbox" data-chg="rf" data-k="gar" ${f.gar?'checked':''}><span>Garantía vigente</span></label>`:''}
+  <div class="note"><b>Clasificación sugerida:</b> ${chip(DESTS[t[0]][0],DESTS[t[0]][1])}<br><span>${esc(t[1])}</span></div>
+  <div><button class="btn" data-act="ret-add" ${left<1||(sk.ser&&!ln.serials.length)?'disabled':''}>Registrar y enviar a triage</button></div></div></section>`}
+ else form=`<section class="panel"><div class="empty">No hay pedidos despachados contra los cuales registrar devoluciones.</div></section>`;
+ const tri=S.returns.filter(r=>r.status==='Triage');
+ const triP=`<section class="panel"><div class="ph"><h2>Triage pendiente</h2><small>${tri.length}</small></div><div class="pb flush">${tri.length?tri.map(r=>`<div class="li" style="align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${r.id}</b> · ${esc(skuName(r.sku))} ×${r.qty}${r.serial?` <span class="mono muted">${esc(r.serial)}</span>`:''}<br><span class="muted">${esc(r.motivo)} · ${CONDS[r.cond]}</span><br><span class="sub">${esc(r.reason)}</span></div><div class="row" style="align-items:flex-end"><label class="f" style="width:210px"><span>Destino</span><select class="in" id="dest-${r.id}">${Object.entries(DESTS).map(([k,v])=>`<option value="${k}" ${k===r.suggest?'selected':''}>${v[0]}${k===r.suggest?' (sugerido)':''}</option>`).join('')}</select></label><button class="btn" data-act="ret-ok" data-id="${r.id}">Confirmar</button></div></div>`).join(''):'<div class="empty">Sin devoluciones por clasificar.</div>'}</div></section>`;
+ const done=S.returns.filter(r=>r.status!=='Triage').slice().reverse();
+ const doneP=`<section class="panel"><div class="ph"><h2>Devoluciones procesadas</h2><small>${done.length}</small></div><div class="pb flush scroll"><table><thead><tr><th>Devolución</th><th>Producto</th><th class="n">Cant.</th><th>Destino</th><th>Estado</th><th>Administración</th></tr></thead><tbody>${done.map(r=>{let act='';
+  if(r.status==='En reacondicionamiento')act+=`<button class="btn ghost sm" data-act="ret-fin" data-id="${r.id}">Finalizar reacondicionamiento</button> `;
+  if(r.status==='RMA abierto')act+=`<button class="btn ghost sm" data-act="ret-rma" data-id="${r.id}">Cerrar RMA</button> `;
+  const cr=r.credit?chip(r.credit,'ok'):`<button class="btn sm" data-act="note-new" data-id="${r.id}" data-t="Nota de crédito">Nota de crédito</button> <button class="btn ghost sm" data-act="note-new" data-id="${r.id}" data-t="Reemplazo">Reemplazo</button>`;
+  return `<tr><td class="mono">${r.id}</td><td>${esc(skuName(r.sku))}</td><td class="n">${r.qty}</td><td>${chip(DESTS[r.dest][0],DESTS[r.dest][1])}</td><td>${esc(r.status)}${r.loc?` <span class="mono muted">${r.loc}</span>`:''}<br>${act}</td><td>${cr}</td></tr>`}).join('')||'<tr><td colspan="6" class="muted">Sin registros.</td></tr>'}</tbody></table></div></section>`;
+ return head('Devoluciones','Clasifique cada producto devuelto: reingreso a stock, reacondicionamiento, garantía o merma.')
+ +guide('ret','Aplica reglas de triage según motivo, estado físico, vencimiento y garantía, y ejecuta el movimiento de stock correspondiente.',[['1. Registre','Pedido, producto, serie y estado físico al recibirlo.'],['2. Revise la sugerencia','El sistema propone el destino y explica por qué. Puede cambiarlo.'],['3. Cierre con administración','Genere nota de crédito o reemplazo; se sincroniza con el sistema administrativo.']])
+ +`<div class="split">${form}${triP}</div>`+doneP};
+A['ret-add']=()=>{const f=U.ret.f;const o=S.orders.find(x=>x.id===f.order),ln=o.lines.find(l=>l.sku===f.sku),sk=skuOf(f.sku);
+ let qty=sk.ser?1:Math.floor(+f.qty);const left=ln.qty-returnedQty(o.id,ln.sku);if(!(qty>=1)||qty>left){toast(`Cantidad inválida. Máximo ${left}`);return}
+ if(sk.ser){if(!f.serial)f.serial=ln.serials[0];if(S.returns.some(r=>r.serial===f.serial)){toast('Esa serie ya fue devuelta');return}}
+ const t=triage(f,sk);S.returns.push({id:'DEV-'+String(S.seq.ret++).padStart(4,'0'),order:o.id,sku:sk.sku,qty,serial:sk.ser?f.serial:'',motivo:f.motivo,cond:f.cond,gar:f.gar,lot:f.lot,exp:f.exp,suggest:t[0],reason:t[1],dest:null,status:'Triage',created:now(),credit:null,loc:''});
+ U.ret.f={...retDefault(),order:f.order,sku:f.sku};toast('Devolución enviada a triage');render()};
+A['ret-ok']=el=>{const r=S.returns.find(x=>x.id===el.dataset.id);const d=$('#dest-'+r.id).value;const sk=skuOf(r.sku);const sers=r.serial?[r.serial]:[];
+ if(d==='reingreso'){if(sk.per&&(!r.exp||daysTo(r.exp)<0)){toast('Para reingresar un perecible debe registrar el vencimiento');return}
+  const out=placeQty(sk,r.qty,r.lot||'DEV-'+r.id.slice(-4),sk.per?r.exp:null,sers,r.id,'Reingreso');r.loc=out[0].loc.id;r.status='Reingresada'}
+ else if(d==='reacond'){const row=placeQ(sk,r.qty,r.lot||'DEV-'+r.id.slice(-4),r.exp||null,sers,'reacond',r.id,'Reacondicionamiento');r.loc=row.loc;r.status='En reacondicionamiento'}
+ else if(d==='garantia'){const row=placeQ(sk,r.qty,r.lot||'DEV-'+r.id.slice(-4),r.exp||null,sers,'garantia',r.id,'Garantía (RMA)');r.loc=row.loc;r.rma='RMA-'+String(S.seq.rma++).padStart(4,'0');r.status='RMA abierto'}
+ else{mov('Merma',sk.sku,r.lot||'—',r.qty,'—',r.id);r.status='Merma';r.loc=''}
+ r.dest=d;toast(`${r.id}: ${DESTS[d][0]}`);render()};
+A['ret-fin']=el=>{const r=S.returns.find(x=>x.id===el.dataset.id);const row=S.stock.find(s=>s.status==='reacond'&&s.lot===(r.lot||'DEV-'+r.id.slice(-4))&&s.sku===r.sku&&s.qty>0);
+ if(row){S.stock=S.stock.filter(x=>x!==row);placeQty(skuOf(r.sku),row.qty,row.lot+'-R',row.exp,row.serials,r.id,'Reingreso');}
+ r.status='Reingresada (reacondicionada)';toast('Producto reacondicionado y devuelto al stock');render()};
+A['ret-rma']=el=>{const r=S.returns.find(x=>x.id===el.dataset.id);const row=S.stock.find(s=>s.status==='garantia'&&s.sku===r.sku&&s.lot===(r.lot||'DEV-'+r.id.slice(-4)));
+ if(row){mov('RMA proveedor',row.sku,row.lot,row.qty,'—',r.rma||r.id);S.stock=S.stock.filter(x=>x!==row)}r.status='RMA cerrado';toast('RMA cerrado');render()};
+/* ========== Notas de crédito y reemplazos ========== */
+const IVA=.19;
+function slog(msg,lvl=''){S.syncLog.unshift({ts:now(),msg,lvl});if(S.syncLog.length>60)S.syncLog.length=60}
+function createNote(r,type){const o=S.orders.find(x=>x.id===r.order),sk=skuOf(r.sku);const neto=type==='Reemplazo'?0:sk.price*r.qty;
+ const seq=S.seq.note++;const n={folio:(type==='Reemplazo'?'RP-':'NC-')+String(seq).padStart(4,'0'),seq,type,ret:r.id,order:o.id,cust:custOf(o).n,sku:sk.sku,qty:r.qty,neto,iva:Math.round(neto*IVA),total:Math.round(neto*(1+IVA)),status:'Pendiente',erp:'',tries:0,err:'',created:now()};
+ if(type==='Reemplazo'){const id='PED-'+(S.seq.ord++);S.orders.push({id,cust:o.cust,prio:'Express',lines:[{sku:sk.sku,qty:r.qty,serials:[]}],status:'Pendiente',created:now(),route:null,wave:null,rep:n.folio});n.newOrder=id}
+ S.notes.push(n);r.credit=n.folio;slog(`${n.folio} creada desde ${r.id}`);
+ toast(type==='Reemplazo'?`Reemplazo ${n.folio}: pedido ${n.newOrder} creado en picking`:`${n.folio} creada. Pendiente de sincronizar`);render()}
+function syncNote(n){if(n.status==='Sincronizando'||n.status==='Sincronizada')return;n.status='Sincronizando';n.tries++;slog(`${n.folio}: enviando a administración (intento ${n.tries})`);
+ setTimeout(()=>{if(n.tries===1&&n.seq%4===0){n.status='Error';n.err='Tiempo de espera agotado en el servicio de administración';slog(`${n.folio}: ${n.err}`,'bad')}
+  else{n.status='Sincronizada';n.erp='ERP-'+(700000+n.seq*37);n.err='';slog(n.type==='Reemplazo'?`${n.folio}: registrado en administración como salida sin cargo (${n.erp})`:`${n.folio}: nota de crédito registrada, cuenta del cliente ajustada (${n.erp})`,'ok')}
+  save();renderNav();if(U.view==='notas')render()},1200);
+ renderNav();if(U.view==='notas')render()}
+function syncAll(){const p=S.notes.filter(n=>n.status==='Pendiente'||n.status==='Error');p.forEach(syncNote);return p.length}
+VIEWS.notas=()=>{const nt=S.notes.slice().reverse();
+ return head('Notas de crédito y reemplazos','Cada devolución resuelta se envía al sistema administrativo para ajustar la cuenta del cliente.',`<label class="chk" style="padding:0;border:0;align-items:center"><input type="checkbox" data-act="auto-sync" ${S.set.autoSync?'checked':''}><span>Sincronización automática</span></label><button class="btn" data-act="sync-all" ${S.notes.some(n=>n.status==='Pendiente'||n.status==='Error')?'':'disabled'}>Sincronizar pendientes</button>`)
+ +guide('notes','Genera el documento tributario o la salida sin cargo, y lo envía a administración para que cuadre contabilidad e inventario.',[['Crear','Desde Devoluciones, pulse «Nota de crédito» o «Reemplazo» en una devolución procesada.'],['Sincronizar','Manual o automática. Si el servicio falla, la nota queda en error y se puede reintentar.'],['Reemplazo','Crea un pedido express sin cargo que entra a picking y se registra aparte en administración.']])
+ +`<div class="note warn">Integración simulada: los datos no salen de esta página. En producción, el envío se conecta a la API del ERP.</div>`
+ +`<section class="panel"><div class="ph"><h2>Documentos</h2><small>${nt.length}</small></div><div class="pb flush scroll"><table><thead><tr><th>Folio</th><th>Tipo</th><th>Cliente</th><th>Referencia</th><th class="n">Neto</th><th class="n">IVA</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>${nt.map(n=>`<tr><td class="mono"><b>${n.folio}</b></td><td>${chip(n.type,n.type==='Reemplazo'?'info':'')}</td><td>${esc(n.cust)}</td><td class="mono muted">${n.ret} · ${n.order}${n.newOrder?' → '+n.newOrder:''}</td><td class="n">${n.type==='Reemplazo'?'Sin cargo':clp(n.neto)}</td><td class="n">${n.type==='Reemplazo'?'—':clp(n.iva)}</td><td class="n">${n.type==='Reemplazo'?'—':clp(n.total)}</td><td>${chip(n.status,n.status==='Sincronizada'?'ok':n.status==='Error'?'bad':n.status==='Sincronizando'?'info':'warn')}${n.erp?`<br><span class="mono muted">${n.erp}</span>`:''}${n.err?`<br><span class="sub">${esc(n.err)}</span>`:''}</td><td class="n">${n.status==='Pendiente'||n.status==='Error'?`<button class="btn sm" data-act="sync-one" data-f="${n.folio}">${n.status==='Error'?'Reintentar':'Sincronizar'}</button>`:''}</td></tr>`).join('')||'<tr><td colspan="9" class="muted">Aún no hay documentos. Procese una devolución y genere su nota.</td></tr>'}</tbody></table></div></section>`
+ +`<section class="panel"><div class="ph"><h2>Registro de sincronización</h2></div><div class="pb flush"><div class="list">${S.syncLog.slice(0,10).map(l=>`<div class="li"><span>${l.lvl?chip(l.lvl==='ok'?'OK':'Error',l.lvl):chip('Info')} ${esc(l.msg)}</span><span class="mono muted">${ftime(l.ts)}</span></div>`).join('')||'<div class="empty">Sin actividad.</div>'}</div></div></section>`};
+A['note-new']=el=>{createNote(S.returns.find(r=>r.id===el.dataset.id),el.dataset.t)};
+A['sync-one']=el=>syncNote(S.notes.find(n=>n.folio===el.dataset.f));
+A['sync-all']=()=>{const k=syncAll();toast(`${k} documentos enviados`)};
+A['auto-sync']=el=>{S.set.autoSync=el.checked;save();toast(el.checked?'Sincronización automática activada':'Sincronización automática desactivada')};
+
+/* ========== Rutas, manifiesto y guías ========== */
+const pad=(n)=>String(n).padStart(2,'0');
+const hhmm=m=>pad(Math.floor(m/60)%24)+':'+pad(Math.round(m%60));
+const packsOf=o=>S.packs.filter(p=>p.order===o.id);
+const routeOrders=r=>r.orders.map(id=>S.orders.find(o=>o.id===id));
+function sequence(r){const left=routeOrders(r);const seq=[];let pos=DEPOT;
+ while(left.length){left.sort((a,b)=>distKm(pos,custOf(a))*(a.prio==='Express'?.5:1)-distKm(pos,custOf(b))*(b.prio==='Express'?.5:1));const n=left.shift();seq.push(n);pos=custOf(n)}
+ r.orders=seq.map(o=>o.id)}
+function routeStats(r){let pos=DEPOT,km=0,t=8*60;const stops=routeOrders(r).map(o=>{const d=distKm(pos,custOf(o));km+=d;t+=d/30*60;const eta=t;t+=10;pos=custOf(o);return{o,eta,km:d}});const back=distKm(pos,DEPOT);return{stops,km:km+back,end:t+back/30*60,
+ kg:routeOrders(r).reduce((s,o)=>s+packsOf(o).reduce((a,p)=>a+p.kg,0),0),bultos:routeOrders(r).reduce((s,o)=>s+packsOf(o).length,0)}}
+const vehOf=r=>S.vehicles.find(v=>v.id===r.veh);
+function fits(r,o){const st=routeStats(r),v=vehOf(r);const k=packsOf(o).reduce((a,p)=>a+p.kg,0);return st.kg+k<=v.kg&&st.bultos+packsOf(o).length<=v.bultos}
+function newRoute(vid){const r={id:'RUT-'+pad(S.seq.route++).padStart(4,'0'),veh:vid,orders:[],status:'Planificada',created:now(),folios:{}};S.routes.push(r);return r}
+const busyVeh=()=>new Set(S.routes.filter(r=>r.status!=='Cerrada'&&r.status!=='En ruta').map(r=>r.veh));
+function autoPlan(){const un=S.orders.filter(o=>o.status==='Empacado'&&!o.route).sort((a,b)=>Math.atan2(custOf(a).y,custOf(a).x)-Math.atan2(custOf(b).y,custOf(b).x));
+ const free=S.vehicles.filter(v=>v.active!==false&&!busyVeh().has(v.id)&&!S.routes.some(r=>r.veh===v.id&&r.status==='En ruta')).sort((a,b)=>a.kg-b.kg);let cur=S.routes.filter(r=>r.status==='Planificada').slice(-1)[0]||null,left=0,made=0;
+ for(const o of un){if(!cur||!fits(cur,o)){const v=free.find(x=>{const k=packsOf(o).reduce((a,p)=>a+p.kg,0);return x.kg>=k&&x.bultos>=packsOf(o).length});if(!v){left++;continue}free.splice(free.indexOf(v),1);cur=newRoute(v.id);made++}
+  cur.orders.push(o.id);o.route=cur.id}
+ S.routes.filter(r=>r.status==='Planificada').forEach(sequence);
+ toast(`${un.length-left} pedidos asignados en ${made} ruta${made===1?'':'s'}`+(left?` · ${left} sin vehículo disponible`:''));render()}
+function guiaHtml(r,o){const c=custOf(o),v=vehOf(r),folio=r.folios[o.id];const rep=!!o.rep;
+ const lines=o.lines.map(l=>{const s=skuOf(l.sku),pu=rep?0:s.price;return `<tr><td class="mono">${s.sku}</td><td>${esc(s.name)}${l.serials.length?`<br><span class="mono" style="color:#555">Series: ${esc(l.serials.join(', '))}</span>`:''}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">${rep?'Sin cargo':clp(pu)}</td><td style="text-align:right">${rep?'—':clp(pu*l.qty)}</td></tr>`}).join('');
+ const neto=rep?0:orderNeto(o);
+ return `<div class="paper"><div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap"><div><h3>GUÍA DE DESPACHO ELECTRÓNICA</h3><div>Centro Logístico Ejemplo SpA · RUT 76.000.000-0 (ejemplo)<br>Giro: almacenaje y distribución · ${esc(DEPOT.name)}</div></div><div style="border:2px solid #111;padding:8px 14px;text-align:center;min-width:150px"><b>Folio N°</b><div class="mono" style="font-size:16px">${folio||'Se asigna al despachar'}</div><div style="font-size:10.5px">Fecha ${fdate(addDays(0))}</div></div></div>
+ <hr style="border:0;border-top:1px solid #ccc;margin:10px 0"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"><div><b>Receptor</b><br>${esc(c.n)}<br>${esc(c.dir)}, ${esc(c.com)}</div><div><b>Traslado</b><br>${rep?'Reemplazo sin cargo ('+o.rep+')':'Operación constituye venta'}<br>Pedido ${o.id}</div><div><b>Transporte</b><br>${esc(carrierName(v))}<br>${esc(v.name)} · patente ${v.plate}<br>Conductor ${esc(v.driver)}</div></div>
+ <div class="scroll" style="margin-top:10px"><table><thead><tr><th>Código</th><th>Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. unitario</th><th style="text-align:right">Total</th></tr></thead><tbody>${lines}</tbody></table></div>
+ <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:8px"><div>Bultos: ${packsOf(o).map(p=>`<span class="mono">${ssccFmt(p.sscc)}</span>`).join(' · ')||'—'}</div><div style="text-align:right">Neto ${clp(neto)}<br>IVA 19% ${clp(neto*IVA)}<br><b>Total ${clp(neto*(1+IVA))}</b></div></div>
+ <div class="sig"><div>Nombre y RUT de quien recibe</div><div>Firma y fecha</div></div><div style="margin-top:10px;font-size:10.5px;color:#666">Documento de ejemplo. Para tener validez tributaria debe timbrarse y enviarse al SII desde el sistema administrativo.</div></div>`}
+function manifestHtml(r){const st=routeStats(r),v=vehOf(r);
+ return `<div class="paper"><div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap"><div><h3>MANIFIESTO DE CARGA ${r.id}</h3><div>${esc(DEPOT.name)} · ${fdate(addDays(0))}</div></div><div style="text-align:right"><b>${esc(v.name)}</b> · ${v.plate} · ${esc(carrierName(v))}<br>Conductor ${esc(v.driver)}${v.drvPhone?' · '+esc(v.drvPhone):''}<br>Salida ${hhmm(8*60)} · retorno estimado ${hhmm(st.end)}</div></div>
+ <div class="scroll" style="margin-top:10px"><table><thead><tr><th>Parada</th><th>ETA</th><th>Cliente y dirección</th><th>Pedido</th><th>Guía</th><th>Bultos (SSCC)</th><th style="text-align:right">Kg</th><th>Cargado</th></tr></thead><tbody>${st.stops.map((s,i)=>{const ps=packsOf(s.o);return `<tr><td>${i+1}</td><td class="mono">${hhmm(s.eta)}</td><td><b>${esc(custOf(s.o).n)}</b><br>${esc(custOf(s.o).dir)}, ${esc(custOf(s.o).com)}</td><td class="mono">${s.o.id}${s.o.prio==='Express'?' · EXPRESS':''}</td><td class="mono">${r.folios[s.o.id]||'—'}</td><td class="mono" style="font-size:10.5px">${ps.map(p=>`${p.i}/${p.n} ${ssccFmt(p.sscc)}`).join('<br>')}</td><td style="text-align:right">${ps.reduce((a,p)=>a+p.kg,0).toFixed(1)}</td><td>☐</td></tr>`}).join('')}</tbody></table></div>
+ <div style="margin-top:8px"><b>Totales:</b> ${st.stops.length} paradas · ${st.bultos} bultos · ${st.kg.toFixed(1)} kg · ${st.km.toFixed(1)} km</div><div class="sig"><div>Despachador</div><div>Conductor</div><div>Control de carga</div></div></div>`}
+function routePanel(r){const v=vehOf(r),st=routeStats(r);const pk=st.kg/v.kg*100,pb=st.bultos/v.bultos*100;const plan=r.status==='Planificada';
+ return `<section class="panel"><div class="ph"><div><h2>${r.id} · ${esc(v.name)}</h2><small>${esc(carrierName(v))} · ${esc(v.driver)} · ${v.plate}</small></div><div class="row" style="align-items:center">${chip(r.status,plan?'warn':'ok')}<button class="btn ghost sm" data-act="manifest" data-id="${r.id}">Manifiesto</button><button class="btn ghost sm" data-act="guias" data-id="${r.id}">Guías de despacho</button>${plan?`<button class="btn sm" data-act="dispatch" data-id="${r.id}" ${r.orders.length?'':'disabled'}>Despachar ruta</button>`:''}</div></div>
+ <div class="pb stack"><div class="grid2" style="gap:12px"><div><div class="row" style="justify-content:space-between"><span class="sub">Carga</span><span class="mono">${st.kg.toFixed(0)} / ${v.kg} kg</span></div>${bar(pk,pk>90?'bad':pk>70?'warn':'')}</div><div><div class="row" style="justify-content:space-between"><span class="sub">Bultos</span><span class="mono">${st.bultos} / ${v.bultos}</span></div>${bar(pb,pb>90?'bad':pb>70?'warn':'')}</div></div>
+ <div class="row">${chip(st.stops.length+' paradas')}${chip(st.km.toFixed(1)+' km','acc')}${chip('Salida 08:00 · fin '+hhmm(st.end))}</div></div>
+ <div class="pb flush scroll"><table><thead><tr><th>Parada</th><th>ETA</th><th>Cliente</th><th>Pedido</th><th class="n">Bultos</th><th class="n">Kg</th><th></th></tr></thead><tbody>${st.stops.map((s,i)=>`<tr><td>${i+1}</td><td class="mono">${hhmm(s.eta)}</td><td>${esc(custOf(s.o).n)} <span class="muted">· ${esc(custOf(s.o).com)}</span></td><td class="mono">${s.o.id} ${s.o.prio==='Express'?chip('Express','warn'):''}${r.folios[s.o.id]?` ${chip('Guía '+r.folios[s.o.id],'ok')}`:''}</td><td class="n">${packsOf(s.o).length}</td><td class="n">${packsOf(s.o).reduce((a,p)=>a+p.kg,0).toFixed(1)}</td><td class="n">${plan?`<button class="btn ghost sm" data-act="unroute" data-id="${s.o.id}">Quitar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Ruta vacía. Asigne pedidos desde la lista superior.</td></tr>'}</tbody></table></div></section>`}
+VIEWS.despacho=()=>{const un=S.orders.filter(o=>o.status==='Empacado'&&!o.route);const planned=S.routes.filter(r=>r.status==='Planificada');const fv=S.vehicles.filter(v=>v.active!==false&&!busyVeh().has(v.id));
+ const rs=S.routes.slice().reverse();
+ return head('Rutas y despacho','Asigne bultos a vehículos, optimice la secuencia de entrega y emita manifiesto y guías.',`<button class="btn ghost" data-act="go-m" data-t="veh">Vehículos y transportistas</button><button class="btn" data-act="autoplan" ${un.length?'':'disabled'}>Planificar rutas automáticamente</button>`)
+ +guide('ruta','Agrupa pedidos empacados por sector y capacidad del vehículo, ordena las paradas por cercanía (express primero) y emite la documentación de transporte.',[['1. Asigne','Use «Planificar automáticamente» o elija una ruta por pedido.'],['2. Revise','Cada ruta muestra carga, kilómetros y hora estimada por parada.'],['3. Despache','Al despachar se asignan folios de guía y el manifiesto queda listo para firmar.']])
+ +`<section class="panel"><div class="ph"><h2>Pedidos listos para asignar</h2><small>${un.length}</small></div><div class="pb flush scroll"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Comuna</th><th class="n">Bultos</th><th class="n">Kg</th><th>Prioridad</th><th style="width:230px">Asignar a</th></tr></thead><tbody>${un.map(o=>`<tr><td class="mono">${o.id}</td><td>${esc(custOf(o).n)}</td><td>${esc(custOf(o).com)}</td><td class="n">${packsOf(o).length}</td><td class="n">${packsOf(o).reduce((a,p)=>a+p.kg,0).toFixed(1)}</td><td>${o.prio==='Express'?chip('Express','warn'):chip('Estándar')}</td><td><select class="in" data-chg="assign" data-id="${o.id}" aria-label="Asignar ${o.id}"><option value="">Elegir ruta…</option>${planned.map(r=>`<option value="R:${r.id}">${r.id} · ${esc(vehOf(r).name)}</option>`).join('')}${fv.map(v=>`<option value="V:${v.id}">Nueva ruta · ${esc(v.name)}</option>`).join('')}</select></td></tr>`).join('')||'<tr><td colspan="7" class="muted">No hay pedidos empacados sin ruta.</td></tr>'}</tbody></table></div></section>`
+ +rs.map(routePanel).join('')}
+A.autoplan=autoPlan;
+A.unroute=el=>{const o=S.orders.find(x=>x.id===el.dataset.id);const r=S.routes.find(x=>x.id===o.route);r.orders=r.orders.filter(i=>i!==o.id);o.route=null;if(!r.orders.length)S.routes=S.routes.filter(x=>x!==r);else sequence(r);render()};
+A.manifest=el=>{const r=S.routes.find(x=>x.id===el.dataset.id);modal('Manifiesto de carga',manifestHtml(r),true)};
+A.guias=el=>{const r=S.routes.find(x=>x.id===el.dataset.id);modal('Guías de despacho · '+r.id,`<div class="stack">${r.orders.length?routeOrders(r).map(o=>guiaHtml(r,o)).join(''):'<div class="empty">La ruta no tiene pedidos.</div>'}</div>`,true)};
+A.dispatch=el=>{const r=S.routes.find(x=>x.id===el.dataset.id);routeOrders(r).forEach(o=>{r.folios[o.id]=S.seq.folio++;o.status='Despachado';mov('Despacho','','',packsOf(o).length,'MUELLE',`${o.id} · ${r.id}`)});r.status='En ruta';r.departed=now();toast(`${r.id} despachada · ${r.orders.length} guías emitidas`);render()};
+
+/* ========== Datos maestros y formularios ========== */
+const COMUNAS={'Santiago Centro':[12,0],'Providencia':[17,3],'Maipú':[6,-10],'Ñuñoa':[19,0],'Las Condes':[23,6],'La Florida':[22,-9],'Puente Alto':[26,-16],'Quilicura':[7,10],'Pudahuel':[0,0],'Recoleta':[13,5],'Independencia':[12,3],'Estación Central':[8,-1],'San Miguel':[12,-5],'Macul':[18,-4],'Peñalolén':[24,-4],'La Reina':[24,-1],'Vitacura':[23,4],'Lo Barnechea':[27,10],'Huechuraba':[14,10],'Renca':[8,5],'Cerrillos':[7,-6],'San Bernardo':[10,-20],'Colina':[6,20]};
+function carrierName(v){return v.carrier?(S.carriers.find(c=>c.id===v.carrier)?.name||'—'):'Flota propia'}
+let FM=null;
+const lineRow=r=>`<div class="row fm-line" style="align-items:flex-end;flex-wrap:nowrap"><label class="f" style="flex:1;min-width:0"><span>Producto</span><select class="in l-sku">${S.skus.map(s=>`<option value="${s.sku}" ${s.sku===r.sku?'selected':''}>${esc(s.name)} · ${s.sku}</option>`).join('')}</select></label><label class="f" style="width:90px;flex:none"><span>Cantidad</span><input class="in l-qty" type="number" min="1" value="${r.qty}"></label><button class="btn ghost sm" data-act="fm-rmline" aria-label="Quitar línea">✕</button></div>`;
+function linesHtml(f){const rows=f.val&&f.val.length?f.val:[{sku:S.skus[0]?.sku,qty:1}];return `<div style="flex-basis:100%"><div class="muted" style="font-size:12px;margin-bottom:6px">${f.label} *</div><div id="fm-lines" class="stack" style="gap:8px">${rows.map(lineRow).join('')}</div><div style="margin-top:8px"><button class="btn ghost sm" data-act="fm-addline">+ Agregar producto</button></div></div>`}
+function fieldHtml(f){const v=f.val??'';const id='fm-'+f.k;
+ if(f.type==='check')return `<label class="chk" style="padding:6px 0;border:0;flex-basis:100%"><input type="checkbox" id="${id}" ${v?'checked':''}><span>${f.label}</span></label>`;
+ let inp;
+ if(f.type==='select')inp=`<select class="in" id="${id}" ${f.chg?`data-chg="${f.chg}"`:''}>${f.opts.map(o=>{const[val,lab]=Array.isArray(o)?o:[o,o];return `<option value="${esc(val)}" ${String(val)===String(v)?'selected':''}>${esc(lab)}</option>`}).join('')}</select>`;
+ else inp=`<input class="in" id="${id}" type="${f.type||'text'}" value="${esc(v)}" ${f.min!=null?`min="${f.min}"`:''} ${f.step?`step="${f.step}"`:''} ${f.ph?`placeholder="${esc(f.ph)}"`:''} ${f.ro?'readonly':''}>`;
+ return `<label class="f" style="flex:${f.w||1};min-width:160px"><span>${f.label}${f.req?' *':''}</span>${inp}${f.hint?`<span class="sub">${f.hint}</span>`:''}</label>`}
+function openForm(title,fields,save,label='Guardar'){FM={fields,save};
+ modal(title,`<div class="stack"><div class="row" style="align-items:flex-start" id="fm-body">${fields.map(f=>f.type==='lines'?linesHtml(f):fieldHtml(f)).join('')}</div><div id="fm-err"></div><div class="row"><button class="btn" data-act="fm-save">${label}</button><button class="btn ghost" data-act="close">Cancelar</button></div></div>`)}
+const fmErr=m=>{$('#fm-err').innerHTML=`<div class="note bad">${esc(m)}</div>`};
+A['fm-addline']=()=>$('#fm-lines').insertAdjacentHTML('beforeend',lineRow({sku:S.skus[0]?.sku,qty:1}));
+A['fm-rmline']=el=>{if($$('.fm-line').length>1)el.closest('.fm-line').remove()};
+A['fm-save']=()=>{const vals={};
+ for(const f of FM.fields){
+  if(f.type==='lines'){const m={};$$('.fm-line').forEach(r=>{const sku=$('.l-sku',r).value,q=Math.floor(+$('.l-qty',r).value);if(sku&&q>0)m[sku]=(m[sku]||0)+q});vals[f.k]=Object.entries(m).map(([sku,qty])=>({sku,qty}));continue}
+  const el=$('#fm-'+f.k);let v=f.type==='check'?el.checked:el.value.trim();if(f.type==='number')v=v===''?NaN:+v;
+  if(f.req&&(v===''||(typeof v==='number'&&isNaN(v)))){fmErr(`Complete el campo: ${f.label}`);el.focus();return}
+  if(typeof v==='number'&&!isNaN(v)&&f.min!=null&&v<f.min){fmErr(`${f.label}: el mínimo es ${f.min}`);el.focus();return}
+  vals[f.k]=v}
+ const e=FM.save(vals);if(e){fmErr(e);return}closeModal();render()};
+const nextCode=(arr,key,pre,start)=>pre+(Math.max(start,...arr.map(x=>+String(x[key]).replace(/\D/g,'')||0))+1);
+
+/* --- Productos --- */
+function skuForm(s){const edit=!!s;
+ openForm(edit?'Editar producto':'Nuevo producto',[
+  {k:'sku',label:'Código SKU',req:1,val:edit?s.sku:nextCode(S.skus,'sku','SKU-',1000),ro:edit},
+  {k:'name',label:'Descripción',req:1,val:s?.name,w:2},
+  {k:'w',label:'Peso unitario (kg)',type:'number',req:1,step:'0.01',val:s?.w},
+  {k:'vol',label:'Volumen unitario (L)',type:'number',req:1,step:'0.01',val:s?.vol},
+  {k:'vel',label:'Rotación (unidades/mes)',type:'number',req:1,val:s?.vel??50,hint:'Define la clase ABC y la zona ideal'},
+  {k:'cost',label:'Costo unitario (CLP)',type:'number',req:1,min:0,val:s?.cost},
+  {k:'price',label:'Precio neto de venta (CLP)',type:'number',req:1,min:0,val:s?.price},
+  {k:'ser',label:'Producto con número de serie',type:'check',val:s?.ser},
+  {k:'per',label:'Producto con fecha de vencimiento',type:'check',val:s?.per}],v=>{
+  const code=v.sku.toUpperCase().replace(/\s+/g,'-');
+  if(!edit&&S.skus.some(x=>x.sku===code))return 'Ese código SKU ya existe';
+  if(!(v.w>0)||!(v.vol>0)||!(v.vel>0))return 'Peso, volumen y rotación deben ser mayores que 0';
+  if(edit&&(v.ser!==s.ser||v.per!==s.per)&&onHand(s.sku)>0)return 'No puede cambiar serie o vencimiento mientras haya stock del producto';
+  const o={sku:edit?s.sku:code,name:v.name,w:v.w,vol:v.vol,vel:v.vel,cost:v.cost,price:v.price,ser:v.ser,per:v.per};
+  if(edit)Object.assign(s,o);else S.skus.push(o);toast(edit?'Producto actualizado':`Producto ${o.sku} creado`);return null})}
+/* --- Proveedores --- */
+function provForm(p){const edit=!!p;
+ openForm(edit?'Editar proveedor':'Nuevo proveedor',[{k:'name',label:'Razón social',req:1,val:p?.name,w:2},{k:'rut',label:'RUT',req:1,val:p?.rut,ph:'76.123.456-7'},{k:'contact',label:'Contacto',val:p?.contact},{k:'phone',label:'Teléfono',val:p?.phone},{k:'email',label:'Correo',type:'email',val:p?.email}],v=>{
+  if(S.provs.some(x=>x!==p&&x.name.toLowerCase()===v.name.toLowerCase()))return 'Ya existe un proveedor con ese nombre';
+  if(edit){S.asn.forEach(a=>{if(a.prov===p.name)a.prov=v.name});Object.assign(p,v)}else S.provs.push({id:'P'+(S.seq.prov++),...v});
+  toast(edit?'Proveedor actualizado':'Proveedor creado');return null})}
+/* --- Clientes y destinos --- */
+function custForm(key){const c=key?S.cust[key]:null;const edit=!!c;const names=Object.keys(COMUNAS);const known=c&&names.includes(c.com);
+ openForm(edit?'Editar cliente':'Nuevo cliente o destino',[
+  {k:'n',label:'Nombre o razón social',req:1,val:c?.n,w:2},{k:'rut',label:'RUT',val:c?.rut},
+  {k:'dir',label:'Dirección de entrega',req:1,val:c?.dir,w:2},
+  {k:'com',label:'Comuna',type:'select',chg:'fm-com',val:c?(known?c.com:'Otra'):'Santiago Centro',opts:[...names,'Otra']},
+  {k:'comTxt',label:'Nombre de comuna (si eligió «Otra»)',val:c&&!known?c.com:''},
+  {k:'x',label:'Coordenada Este-Oeste (km desde el CD)',type:'number',step:'0.1',req:1,val:c?c.x:12,hint:'Se completa sola según la comuna. Se usa para ordenar la ruta.'},
+  {k:'y',label:'Coordenada Norte-Sur (km desde el CD)',type:'number',step:'0.1',req:1,val:c?c.y:0}],v=>{
+  const com=v.com==='Otra'?(v.comTxt||'Otra'):v.com;const o={n:v.n,rut:v.rut,dir:v.dir,com,x:v.x,y:v.y};
+  if(edit)Object.assign(c,o);else S.cust['c'+(S.seq.cust++)]=o;toast(edit?'Cliente actualizado':'Cliente creado');return null})}
+/* --- Transportistas y vehículos --- */
+function carForm(c){const edit=!!c;
+ openForm(edit?'Editar transportista':'Nuevo transportista',[{k:'name',label:'Empresa de transporte',req:1,val:c?.name,w:2},{k:'rut',label:'RUT',req:1,val:c?.rut},{k:'contact',label:'Contacto',val:c?.contact},{k:'phone',label:'Teléfono',val:c?.phone}],v=>{
+  if(S.carriers.some(x=>x!==c&&x.name.toLowerCase()===v.name.toLowerCase()))return 'Ya existe un transportista con ese nombre';
+  if(edit)Object.assign(c,v);else S.carriers.push({id:'T'+(S.seq.car++),...v});toast(edit?'Transportista actualizado':'Transportista creado');return null})}
+function vehForm(v0){const edit=!!v0;
+ openForm(edit?'Editar vehículo':'Nuevo vehículo',[
+  {k:'name',label:'Tipo de vehículo',req:1,val:v0?.name,ph:'Furgón, camión 3/4…'},{k:'plate',label:'Patente',req:1,val:v0?.plate,ph:'ABCD-12'},
+  {k:'carrier',label:'Transportista',type:'select',val:v0?.carrier||'',opts:[['','Flota propia'],...S.carriers.map(c=>[c.id,c.name])]},
+  {k:'driver',label:'Conductor',req:1,val:v0?.driver},{k:'drvPhone',label:'Teléfono del conductor',val:v0?.drvPhone},
+  {k:'kg',label:'Capacidad de carga (kg)',type:'number',req:1,min:1,val:v0?.kg},{k:'bultos',label:'Capacidad (bultos)',type:'number',req:1,min:1,val:v0?.bultos},
+  {k:'active',label:'Disponible para planificar rutas',type:'check',val:edit?v0.active!==false:true}],v=>{
+  const plate=v.plate.toUpperCase();if(S.vehicles.some(x=>x!==v0&&x.plate===plate))return 'Ya existe un vehículo con esa patente';
+  const o={...v,plate};if(edit)Object.assign(v0,o);else S.vehicles.push({id:'V'+(S.seq.veh++),...o});toast(edit?'Vehículo actualizado':'Vehículo creado');return null})}
+/* --- Orden de compra y pedido de venta --- */
+function ocForm(){if(!S.provs.length){toast('Primero registre un proveedor');U.mst.tab='prov';go('maestros');provForm();return}
+ openForm('Nueva orden de compra',[{k:'prov',label:'Proveedor',type:'select',req:1,opts:S.provs.map(p=>[p.name,p.name]),w:2},{k:'oc',label:'N° de orden de compra',req:1,val:nextCode(S.asn.filter(a=>a.oc),'oc','OC-',5500)},{k:'eta',label:'Fecha de llegada esperada',type:'date',req:1,val:addDays(1)},{k:'lines',label:'Productos y cantidades',type:'lines'}],v=>{
+  if(!v.lines.length)return 'Agregue al menos un producto con cantidad mayor que 0';
+  if(S.asn.some(a=>a.oc===v.oc))return 'Ese número de orden ya existe';
+  const id='ASN-'+String(S.seq.asn++).padStart(4,'0');S.asn.push({id,prov:v.prov,oc:v.oc,eta:v.eta,status:'Pendiente',lines:v.lines.map(l=>({sku:l.sku,exp:l.qty}))});
+  toast(`${v.oc} registrada. Ya aparece en Recepción`);return null},'Crear orden')}
+function pedForm(){const ks=Object.keys(S.cust);if(!ks.length){toast('Primero registre un cliente');U.mst.tab='cust';go('maestros');custForm();return}
+ openForm('Nuevo pedido de venta',[{k:'cust',label:'Cliente',type:'select',req:1,opts:ks.map(k=>[k,`${S.cust[k].n} · ${S.cust[k].com}`]),w:2},{k:'prio',label:'Prioridad',type:'select',opts:['Estándar','Express']},{k:'lines',label:'Productos y cantidades',type:'lines'}],v=>{
+  if(!v.lines.length)return 'Agregue al menos un producto con cantidad mayor que 0';
+  const id='PED-'+(S.seq.ord++);S.orders.push({id,cust:v.cust,prio:v.prio,lines:v.lines.map(l=>({sku:l.sku,qty:l.qty,serials:[]})),status:'Pendiente',created:now(),route:null,wave:null});
+  toast(`${id} creado. Ya aparece en Picking`);return null},'Crear pedido')}
+A['oc-new']=ocForm;A['ped-new']=pedForm;A['sku-new']=()=>skuForm();
+A['asn-del']=el=>{if(!el.dataset.arm){el.dataset.arm='1';el.textContent='¿Anular?';setTimeout(()=>{el.dataset.arm='';el.textContent='Anular'},3500);return}
+ S.asn=S.asn.filter(a=>a.id!==el.dataset.id);if(U.rec.open===el.dataset.id)U.rec.open=null;toast('Orden anulada');render()};
+A['go-m']=el=>{U.mst.tab=el.dataset.t;go('maestros')};
+
+/* --- Vista de datos maestros --- */
+U.mst={tab:'sku',q:''};
+const MT=[['sku','Productos'],['prov','Proveedores'],['cust','Clientes y destinos'],['car','Transportistas'],['veh','Vehículos']];
+const mcount=t=>({sku:S.skus.length,prov:S.provs.length,cust:Object.keys(S.cust).length,car:S.carriers.length,veh:S.vehicles.length})[t];
+const act=(t,id)=>`<button class="btn ghost sm" data-act="m-edit" data-t="${t}" data-id="${esc(id)}">Editar</button> <button class="btn ghost sm" data-act="m-del" data-t="${t}" data-id="${esc(id)}">Eliminar</button>`;
+function mTable(){const q=U.mst.q.trim().toLowerCase(),t=U.mst.tab;const has=(...a)=>!q||a.join(' ').toLowerCase().includes(q);let rows='',head='',empty='';
+ if(t==='sku'){const ab=abcMap();head='<th>SKU</th><th>Descripción</th><th>ABC</th><th class="n">Peso</th><th class="n">Vol.</th><th class="n">Rotación</th><th class="n">Costo</th><th class="n">Precio</th><th>Control</th><th class="n">Stock</th><th></th>';
+  rows=S.skus.filter(s=>has(s.sku,s.name)).map(s=>`<tr><td class="mono">${s.sku}</td><td>${esc(s.name)}</td><td>${abcB(ab[s.sku])}</td><td class="n mono">${s.w} kg</td><td class="n mono">${s.vol} L</td><td class="n mono">${s.vel}</td><td class="n">${clp(s.cost)}</td><td class="n">${clp(s.price)}</td><td>${s.ser?chip('Serie','acc'):''} ${s.per?chip('Vence','acc'):''}</td><td class="n">${onHand(s.sku)}</td><td class="n">${act('sku',s.sku)}</td></tr>`).join('');empty='Sin productos.'}
+ if(t==='prov'){head='<th>Proveedor</th><th>RUT</th><th>Contacto</th><th>Teléfono</th><th>Correo</th><th class="n">Órdenes pendientes</th><th></th>';
+  rows=S.provs.filter(p=>has(p.name,p.rut,p.contact)).map(p=>`<tr><td><b>${esc(p.name)}</b></td><td class="mono">${esc(p.rut)}</td><td>${esc(p.contact||'—')}</td><td>${esc(p.phone||'—')}</td><td>${esc(p.email||'—')}</td><td class="n">${S.asn.filter(a=>a.prov===p.name&&a.status==='Pendiente').length}</td><td class="n">${act('prov',p.id)}</td></tr>`).join('');empty='Sin proveedores.'}
+ if(t==='cust'){head='<th>Cliente</th><th>RUT</th><th>Dirección</th><th>Comuna</th><th class="n">Coordenadas (km)</th><th class="n">Pedidos</th><th></th>';
+  rows=Object.entries(S.cust).filter(([k,c])=>has(c.n,c.rut,c.dir,c.com)).map(([k,c])=>`<tr><td><b>${esc(c.n)}</b></td><td class="mono">${esc(c.rut||'—')}</td><td>${esc(c.dir)}</td><td>${esc(c.com)}</td><td class="n mono">${c.x} · ${c.y}</td><td class="n">${S.orders.filter(o=>o.cust===k).length}</td><td class="n">${act('cust',k)}</td></tr>`).join('');empty='Sin clientes.'}
+ if(t==='car'){head='<th>Transportista</th><th>RUT</th><th>Contacto</th><th>Teléfono</th><th class="n">Vehículos</th><th></th>';
+  rows=S.carriers.filter(c=>has(c.name,c.rut,c.contact)).map(c=>`<tr><td><b>${esc(c.name)}</b></td><td class="mono">${esc(c.rut)}</td><td>${esc(c.contact||'—')}</td><td>${esc(c.phone||'—')}</td><td class="n">${S.vehicles.filter(v=>v.carrier===c.id).length}</td><td class="n">${act('car',c.id)}</td></tr>`).join('');empty='Sin transportistas.'}
+ if(t==='veh'){head='<th>Vehículo</th><th>Patente</th><th>Transportista</th><th>Conductor</th><th class="n">Capacidad</th><th>Estado</th><th></th>';
+  rows=S.vehicles.filter(v=>has(v.name,v.plate,v.driver,carrierName(v))).map(v=>`<tr><td><b>${esc(v.name)}</b></td><td class="mono">${esc(v.plate)}</td><td>${esc(carrierName(v))}</td><td>${esc(v.driver)}<br><span class="muted">${esc(v.drvPhone||'')}</span></td><td class="n">${nf.format(v.kg)} kg · ${v.bultos} bultos</td><td>${v.active===false?chip('No disponible','warn'):chip('Disponible','ok')}</td><td class="n">${act('veh',v.id)}</td></tr>`).join('');empty='Sin vehículos.'}
+ return rows?`<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`:`<div class="empty">${q?'Sin resultados.':empty}</div>`}
+const MHELP={sku:'Alimenta Inventario, Slotting, Picking y Packing. El peso y volumen definen dónde se ubica; la rotación define su clase ABC.',prov:'Se elige al crear una orden de compra y aparece en Recepción y en el historial.',cust:'Se elige al crear pedidos. La comuna y las coordenadas ordenan las paradas en Rutas y despacho.',car:'Agrupa vehículos. Aparece en el manifiesto y en las guías de despacho.',veh:'Define la capacidad en kg y bultos que usa el planificador de rutas.'};
+const MNEW={sku:'Nuevo producto',prov:'Nuevo proveedor',cust:'Nuevo cliente',car:'Nuevo transportista',veh:'Nuevo vehículo'};
+VIEWS.maestros=()=>{const t=U.mst.tab;
+ return head('Datos maestros','Registre y mantenga productos, proveedores, clientes, transportistas y vehículos. Los cambios se reflejan al instante en los demás módulos.')
+ +guide('mst','Es la fuente de datos de toda la aplicación. Cada registro se usa en el módulo que corresponde.',[['1. Elija una tabla','Productos, proveedores, clientes, transportistas o vehículos.'],['2. Cree o edite','Use el botón de arriba a la derecha. Los campos con * son obligatorios.'],['3. Úselos','Las órdenes de compra se crean en Recepción y los pedidos en Picking, con estos datos.']])
+ +`<div class="row" style="justify-content:space-between;align-items:center"><div class="seg" role="tablist" aria-label="Tablas">${MT.map(([k,l])=>`<button data-act="m-tab" data-t="${k}" aria-pressed="${t===k}">${l} <span class="muted mono">${mcount(k)}</span></button>`).join('')}</div><button class="btn" data-act="m-new">${MNEW[t]}</button></div>`
+ +`<section class="panel"><div class="ph"><div class="row" style="flex:1;align-items:center"><input class="in" id="mq" data-in="mq" style="max-width:300px" placeholder="Buscar" value="${esc(U.mst.q)}" aria-label="Buscar"><span class="sub">${MHELP[t]}</span></div></div><div class="pb flush scroll" id="mtbl">${mTable()}</div></section>`}
+NAV.push({id:'maestros',t:'Datos maestros',g:'Configuración'});
+A['m-tab']=el=>{U.mst.tab=el.dataset.t;U.mst.q='';render()};
+A['m-new']=()=>({sku:()=>skuForm(),prov:()=>provForm(),cust:()=>custForm(),car:()=>carForm(),veh:()=>vehForm()})[U.mst.tab]();
+A['m-edit']=el=>{const id=el.dataset.id;({sku:()=>skuForm(skuOf(id)),prov:()=>provForm(S.provs.find(p=>p.id===id)),cust:()=>custForm(id),car:()=>carForm(S.carriers.find(c=>c.id===id)),veh:()=>vehForm(S.vehicles.find(v=>v.id===id))})[el.dataset.t]()};
+A['m-del']=el=>{if(!el.dataset.arm){el.dataset.arm='1';el.textContent='¿Eliminar?';setTimeout(()=>{el.dataset.arm='';el.textContent='Eliminar'},3500);return}
+ const t=el.dataset.t,id=el.dataset.id;let why='';
+ if(t==='sku'){if(onHand(id)>0)why='tiene stock';else if(S.orders.some(o=>o.lines.some(l=>l.sku===id))||S.asn.some(a=>a.lines.some(l=>l.sku===id))||S.returns.some(r=>r.sku===id))why='está en pedidos, órdenes o devoluciones';else S.skus=S.skus.filter(s=>s.sku!==id)}
+ if(t==='prov'){const p=S.provs.find(x=>x.id===id);if(S.asn.some(a=>a.prov===p.name&&a.status==='Pendiente'))why='tiene órdenes pendientes';else S.provs=S.provs.filter(x=>x!==p)}
+ if(t==='cust'){if(S.orders.some(o=>o.cust===id))why='tiene pedidos asociados';else delete S.cust[id]}
+ if(t==='car'){if(S.vehicles.some(v=>v.carrier===id))why='tiene vehículos asociados';else S.carriers=S.carriers.filter(c=>c.id!==id)}
+ if(t==='veh'){if(S.routes.some(r=>r.veh===id&&r.status!=='Cerrada'))why='está asignado a una ruta';else S.vehicles=S.vehicles.filter(v=>v.id!==id)}
+ toast(why?`No se puede eliminar: ${why}`:'Registro eliminado');render()};
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.chg==='fm-com'){const c=COMUNAS[e.target.value];if(c){$('#fm-x').value=c[0];$('#fm-y').value=c[1]}}});
+document.addEventListener('input',e=>{if(e.target.dataset&&e.target.dataset.in==='mq'){U.mst.q=e.target.value;$('#mtbl').innerHTML=mTable()}});
+
+/* --- Ajuste de stock y movimiento manual (dentro de la traza del lote) --- */
+const _traza=A.traza;
+A.traza=el=>{_traza(el);const r=S.stock.find(x=>x.id===el.dataset.id);if(!r)return;const sk=skuOf(r.sku);
+ const dests=S.locs.filter(l=>l.z!=='Q'&&l.id!==r.loc).filter(l=>{if(S.stock.some(x=>x.loc===l.id&&x.sku!==r.sku&&x.qty>0))return false;const u=usage(l.id);return Math.min((l.vol-u.v)/sk.vol,(l.kg-u.k)/sk.w)>=r.qty}).sort((a,b)=>pathKey(a.id)-pathKey(b.id)).slice(0,40);
+ $('#ov .mb .stack').insertAdjacentHTML('beforeend',`<div class="grid2"><div class="panel" style="box-shadow:none"><div class="ph"><h2>Ajustar cantidad</h2></div><div class="pb stack">${r.serials.length?'<div class="note">Los productos con serie se ajustan con ingreso o devolución, para no perder la trazabilidad.</div>':`<div class="row"><label class="f" style="width:120px"><span>Cantidad real</span><input class="in" id="adj-qty" type="number" min="${r.res}" value="${r.qty}"></label><label class="f" style="flex:1;min-width:150px"><span>Motivo</span><select class="in" id="adj-why"><option>Conteo cíclico</option><option>Corrección de ingreso</option><option>Pérdida o rotura</option></select></label></div><div><button class="btn sm" data-act="adj-ok" data-id="${r.id}">Aplicar ajuste</button></div>`}</div></div>
+ <div class="panel" style="box-shadow:none"><div class="ph"><h2>Mover de ubicación</h2></div><div class="pb stack">${dests.length?`<label class="f"><span>Destino (con espacio suficiente)</span><select class="in" id="mov-loc">${dests.map(l=>`<option value="${l.id}">${l.id} · ${ZSHORT[l.z]}${l.z===idealZone(sk)?' (zona ideal)':''}</option>`).join('')}</select></label><div><button class="btn sm" data-act="mov-ok" data-id="${r.id}">Mover lote</button></div>`:'<div class="note">No hay ubicaciones libres con capacidad para este lote.</div>'}</div></div></div>`)};
+A['adj-ok']=el=>{const r=S.stock.find(x=>x.id===el.dataset.id);const n=Math.floor(+$('#adj-qty').value);if(!(n>=r.res)){toast(`La cantidad no puede ser menor al reservado (${r.res})`);return}
+ const d=n-r.qty;if(!d){toast('Sin cambios');return}r.qty=n;mov('Ajuste',r.sku,r.lot,d,r.loc,$('#adj-why').value);if(r.qty===0&&r.res===0)S.stock=S.stock.filter(x=>x!==r);closeModal();toast(`Ajuste aplicado (${d>0?'+':''}${d})`);render()};
+A['mov-ok']=el=>{const r=S.stock.find(x=>x.id===el.dataset.id);const from=r.loc;r.loc=$('#mov-loc').value;mov('Reubicación',r.sku,r.lot,r.qty,r.loc,`${from} → ${r.loc} (manual)`);
+ const tw=S.stock.find(x=>x!==r&&x.sku===r.sku&&x.lot===r.lot&&x.exp===r.exp&&x.loc===r.loc&&x.status===r.status);if(tw){tw.qty+=r.qty;tw.res+=r.res;tw.serials.push(...r.serials);S.stock=S.stock.filter(x=>x!==r)}
+ closeModal();toast('Lote movido');render()};
+/* ========== Eventos y arranque ========== */
+document.addEventListener('click',e=>{
+ if(e.target.dataset&&e.target.dataset.bg){closeModal();return}
+ const el=e.target.closest('[data-act]');if(!el)return;const act=el.dataset.act;
+ if(act==='close'){closeModal();return}
+ if(act==='go'){closeModal();go(el.dataset.v);return}
+ if(act==='theme'){const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';return}
+ if(act==='reset'){if(el.dataset.arm){seed();U.rec={open:null,result:null};U.pick={sel:new Set(),strat:'wave'};U.pack={order:null,scan:{},box:null,real:'',made:null};U.ret={};render();toast('Datos de ejemplo restablecidos')}else{el.dataset.arm='1';el.textContent='Pulse otra vez para confirmar';setTimeout(()=>{el.dataset.arm='';el.textContent='Restablecer datos de ejemplo'},4000)}return}
+ if(A[act])A[act](el,e)});
+document.addEventListener('change',e=>{const el=e.target;const c=el.dataset&&el.dataset.chg;if(!c)return;
+ if(c==='vel'){skuOf(el.dataset.id).vel=Math.max(1,+el.value||1);render()}
+ else if(c==='pack-box'){U.pack.box=el.value;render()}
+ else if(c==='rf'){const f=U.ret.f,k=el.dataset.k;f[k]=el.type==='checkbox'?el.checked:el.value;if(k==='order'){const o=S.orders.find(x=>x.id===f.order);f.sku=o.lines[0].sku;f.serial='';f.qty=1}if(k==='sku'){f.serial='';f.qty=1}render()}
+ else if(c==='assign'&&el.value){const o=S.orders.find(x=>x.id===el.dataset.id);const[t,id]=el.value.split(':');let r=t==='R'?S.routes.find(x=>x.id===id):newRoute(id);
+  if(!fits(r,o)){toast('El pedido excede la capacidad del vehículo');if(t==='V'){S.routes=S.routes.filter(x=>x!==r)}render();return}
+  r.orders.push(o.id);o.route=r.id;sequence(r);render()}});
+function refreshPack(){const o=S.orders.find(x=>x.id===U.pack.order);if(!o)return;const ws=weightState(o);const w=$('#wstate');if(!w)return;
+ w.innerHTML=`<div class="note ${ws.r==null?'':ws.ok?'ok':'bad'}">${ws.txt}</div>${ws.r!=null&&!ws.ok?`<label class="chk" style="padding:8px 0 0;border:0"><input type="checkbox" data-act="pack-auth" ${U.pack.auth?'checked':''}><span>Supervisor autoriza el despacho con esta diferencia</span></label>`:''}`;
+ const b=$('#packmake');if(b)b.disabled=!(scanned(o)&&(ws.ok||(ws.r!=null&&U.pack.auth)))}
+document.addEventListener('input',e=>{const el=e.target,k=el.dataset&&el.dataset.in;if(!k)return;
+ if(k==='invq'){U.inv.q=el.value;$('#invtbl').innerHTML=invTable();$('#invser').innerHTML=serialTrace()}
+ else if(k==='real'){U.pack.real=el.value;refreshPack()}});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='scanin'){const v=e.target.value.trim().toUpperCase();const o=S.orders.find(x=>x.id===U.pack.order);const l=o.lines.find(x=>x.sku===v||x.sku==='SKU-'+v);
+ if(!l){toast('Ese SKU no pertenece al pedido');e.target.select();return}
+ if((U.pack.scan[l.sku]||0)>=l.qty){toast('Cantidad ya completa para '+l.sku);e.target.select();return}
+ U.pack.scan[l.sku]=(U.pack.scan[l.sku]||0)+1;render();const i=$('#scanin');if(i)i.focus()}});
+document.addEventListener('toggle',e=>{const d=e.target;if(d.dataset&&d.dataset.g){try{localStorage.setItem('g-'+d.dataset.g,d.open?'1':'0')}catch(x){}}},true);
+setInterval(()=>{if(S&&S.set&&S.set.autoSync&&S.notes.some(n=>n.status==='Pendiente'||n.status==='Error'))syncAll()},3500);
+A['db-reload']=async()=>{try{const r=await WMSDB.pull();if(r){S=r;migrate();WMSDB.baseline(S)}DBS=WMSDB.status;render();toast('Datos actualizados desde la base de datos')}catch(e){toast('No se pudo conectar con la base de datos')}};
+(async function boot(){
+ let remote=null,dbok=false;
+ if(window.WMSDB){$('#view').innerHTML='<div class="empty">Conectando con la base de datos…</div>';
+  try{remote=await WMSDB.pull();dbok=true}catch(e){}
+  WMSDB.onStatus(s=>{DBS=s;renderNav();if(s==='conflict')toast('Otro usuario guardó cambios antes. Cargue los datos actualizados.')})}
+ if(remote){S=remote;migrate()}else if(!load())seed();
+ S.notes.forEach(n=>{if(n.status==='Sincronizando')n.status='Pendiente'});
+ if(dbok){DBON=true;DBS=WMSDB.status;if(remote)WMSDB.baseline(S);else save()}
+ else if(window.WMSDB){toast('Sin conexión con la base de datos: se usan datos locales')}
+ {const h=location.hash.slice(1);if(VIEWS[h])U.view=h}
+ window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(VIEWS[h]&&h!==U.view){U.view=h;render()}});
+ render();
+})();
+</script>
